@@ -1,11 +1,10 @@
+// controllers/studentController.js - FIXED VERSION
 const Student = require("../models/Student");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 
 /**
- * =====================================================
  * GET students / ssc (pagination + filters)
- * =====================================================
  */
 exports.getStudents = async (req, res) => {
   try {
@@ -19,10 +18,11 @@ exports.getStudents = async (req, res) => {
     } = req.query;
 
     const skip = (page - 1) * limit;
-    const query = {};
+    const query = { role: { $in: ["student", "ssc"] } };
 
     // Role filter
     if (role === "ssc") query.role = "ssc";
+    else if (role === "student") query.role = "student";
 
     // Search filter
     if (search) {
@@ -35,20 +35,25 @@ exports.getStudents = async (req, res) => {
     }
 
     // Registration type filter
-    if (regType === "college") query.course = { $ne: "" };
-    if (regType === "senior") query.strand = { $ne: "" };
+    if (regType === "college") {
+      query.course = { $exists: true, $ne: "", $ne: null };
+    }
+    if (regType === "senior") {
+      query.strand = { $exists: true, $ne: "", $ne: null };
+    }
 
     // Year level filter
     if (yearLevel) query.yearLevel = yearLevel;
 
     // Fetch students with proper pagination
-    const students = await Student.find(query)
+    const students = await User.find(query)
       .sort({ createdAt: -1 })
       .skip(Number(skip))
       .limit(Number(limit))
+      .select("-password -verificationToken -verificationTokenExpiry -__v")
       .lean();
 
-    const total = await Student.count(query);
+    const total = await User.countDocuments(query);
 
     res.json({
       students,
@@ -64,9 +69,7 @@ exports.getStudents = async (req, res) => {
 };
 
 /**
- * =====================================================
- * POST - Add Student
- * =====================================================
+ * POST - Add Student - COMPLETELY FIXED
  */
 exports.addStudent = async (req, res) => {
   try {
@@ -84,85 +87,130 @@ exports.addStudent = async (req, res) => {
       password = "",
     } = req.body;
 
-    // Required fields
+    console.log("📝 Received student data:", { 
+      idNumber, 
+      firstName, 
+      lastName, 
+      age, 
+      course, 
+      strand, 
+      yearLevel, 
+      section,
+      hasEmail: !!email,
+      hasPassword: !!password 
+    });
+
+    // Required fields validation
     if (!idNumber || !firstName || !lastName || !age || !yearLevel || !section) {
-      return res.status(400).json({ error: "Incomplete data" });
+      console.log("❌ Missing required fields");
+      return res.status(400).json({ error: "Incomplete data. Please fill all required fields." });
     }
 
     // Course or strand must exist
     if (!course.trim() && !strand.trim()) {
+      console.log("❌ No course or strand provided");
       return res.status(400).json({ error: "Course or Strand is required" });
     }
 
-    // Check existing student
-    const exists = await Student.findOne({ idNumber: Number(idNumber) });
+    // Check if ID number already exists
+    const exists = await User.findOne({ idNumber: Number(idNumber) });
     if (exists) {
-      return res.status(400).json({ error: "Student already exists" });
+      console.log("❌ ID number already exists:", idNumber);
+      return res.status(400).json({ error: "Student with this ID number already exists" });
     }
 
     // Check if email already exists (if provided)
     if (email && email.trim()) {
       const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
       if (emailExists) {
+        console.log("❌ Email already registered:", email);
         return res.status(400).json({ error: "Email already registered" });
       }
     }
 
-    // Prepare student data
+    // Prepare student data with ALL required fields for User schema
     const studentData = {
       idNumber: Number(idNumber),
       firstName: firstName.trim(),
-      middleName: middleName.trim(),
+      middleName: middleName.trim() || "",
       lastName: lastName.trim(),
       age: Number(age),
       yearLevel: yearLevel.trim(),
       section: section.trim(),
+      role: "student",
+      photoURL: "",
+      qrCode: "",
+      // Set course or strand, make sure the other is empty string
+      course: course.trim() ? course.trim() : "",
+      strand: strand.trim() ? strand.trim() : "",
     };
 
-    // Add course OR strand, not both
-    if (course.trim()) {
-      studentData.course = course.trim();
-      studentData.strand = "";
-    } else {
-      studentData.strand = strand.trim();
-      studentData.course = "";
-    }
-
-    // Add email if provided
+    // Only add email if provided (don't add empty string)
     if (email && email.trim()) {
       studentData.email = email.trim().toLowerCase();
     }
 
-    // Add hashed password if provided
+    // Only add password if provided (don't add empty string)
     if (password && password.trim()) {
       const hashedPassword = await bcrypt.hash(password.trim(), 10);
       studentData.password = hashedPassword;
+      console.log("🔐 Password hashed and added");
     }
 
-    // Create student
-    const student = await Student.create(studentData);
+    console.log("💾 Creating student with final data:", {
+      ...studentData,
+      password: studentData.password ? "***HIDDEN***" : "empty"
+    });
 
-    console.log("✅ Student created:", student);
+    // Create student using User model directly (bypassing Student model wrapper)
+    const student = await User.create(studentData);
+
+    console.log("✅ Student created in database with ID:", student._id);
+
+    // Fetch the created student without sensitive data
+    const createdStudent = await User.findById(student._id)
+      .select("-password -verificationToken -verificationTokenExpiry -__v")
+      .lean();
+
+    console.log("✅ Student added successfully:", createdStudent.idNumber);
 
     res.status(201).json({
-      message: "✅ Student added successfully",
-      student,
+      message: "Student added successfully",
+      student: createdStudent,
     });
   } catch (err) {
     console.error("🔥 Add student error:", err);
-    res.status(500).json({ error: "Server error adding student" });
+    console.error("🔥 Error stack:", err.stack);
+    
+    // Check for validation errors
+    if (err.name === 'ValidationError') {
+      const errors = Object.keys(err.errors).map(key => ({
+        field: key,
+        message: err.errors[key].message
+      }));
+      console.error("🔥 Validation errors:", errors);
+      return res.status(400).json({ 
+        error: "Validation error",
+        details: errors
+      });
+    }
+    
+    res.status(500).json({ 
+      error: "Server error adding student",
+      details: err.message 
+    });
   }
 };
 
 /**
- * =====================================================
  * PUT - Update Student
- * =====================================================
  */
 exports.updateStudent = async (req, res) => {
   try {
     const idNumber = req.params.idNumber;
     const payload = {};
+
+    console.log("📝 Updating student:", idNumber);
 
     // Fields to update
     ["firstName", "middleName", "lastName", "age", "yearLevel", "section"].forEach(
@@ -189,7 +237,8 @@ exports.updateStudent = async (req, res) => {
       }
     }
 
-    if (req.body.sscPosition) {
+    // Handle SSC position update
+    if (req.body.sscPosition !== undefined) {
       payload.sscPosition = req.body.sscPosition.trim();
     }
 
@@ -200,7 +249,7 @@ exports.updateStudent = async (req, res) => {
       // Check if email is already taken by another user
       const emailExists = await User.findOne({ 
         email: emailToUpdate,
-        idNumber: { $ne: Number(idNumber) } // Exclude current student
+        idNumber: { $ne: Number(idNumber) }
       });
       
       if (emailExists) {
@@ -210,46 +259,73 @@ exports.updateStudent = async (req, res) => {
       payload.email = emailToUpdate;
     }
 
-    // Handle password update (hash it first)
+    // Handle password update - hash it BEFORE updating
     if (req.body.password !== undefined && req.body.password.trim()) {
       const hashedPassword = await bcrypt.hash(req.body.password.trim(), 10);
       payload.password = hashedPassword;
+      console.log("🔐 Password will be updated (hashed)");
     }
 
-    console.log("📝 Updating student:", idNumber, "with payload:", payload);
+    console.log("💾 Updating student in database with payload:", {
+      ...payload,
+      password: payload.password ? "***HIDDEN***" : undefined
+    });
 
-    // Update student
-    const student = await Student.updateByIdNumber(idNumber, payload);
-    if (!student) return res.status(404).json({ error: "Student not found" });
+    // Update directly in User collection
+    const student = await User.findOneAndUpdate(
+      { 
+        idNumber: Number(idNumber),
+        role: { $in: ["student", "ssc"] }
+      },
+      payload,
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    ).select("-password -verificationToken -verificationTokenExpiry -__v");
 
-    console.log("✅ Student updated:", student);
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    console.log("✅ Student updated successfully:", student.idNumber);
 
     res.json({
-      message: "✅ Student updated successfully",
+      message: "Student updated successfully",
       student,
     });
   } catch (err) {
     console.error("🔥 Update student error:", err);
-    res.status(500).json({ error: "Server error updating student" });
+    res.status(500).json({ 
+      error: "Server error updating student",
+      details: err.message 
+    });
   }
 };
 
 /**
- * =====================================================
- * DELETE - Student
- * =====================================================
+ * DELETE - Student (Only for Students tab)
  */
 exports.deleteStudent = async (req, res) => {
   try {
-    console.log("🗑️ Deleting student:", req.params.idNumber);
+    const idNumber = req.params.idNumber;
+    
+    console.log("🗑️ Deleting student:", idNumber);
 
-    const student = await Student.deleteByIdNumber(req.params.idNumber);
-    if (!student) return res.status(404).json({ error: "Student not found" });
+    // Delete student using User model directly
+    const student = await User.findOneAndDelete({
+      idNumber: Number(idNumber),
+      role: { $in: ["student", "ssc"] }
+    }).select("-password -verificationToken -verificationTokenExpiry -__v");
+
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
 
     console.log("✅ Student deleted:", student.idNumber);
 
     res.json({
-      message: "✅ Student deleted successfully",
+      message: "Student deleted successfully",
       deletedStudent: {
         idNumber: student.idNumber,
         firstName: student.firstName,
@@ -258,28 +334,35 @@ exports.deleteStudent = async (req, res) => {
     });
   } catch (err) {
     console.error("🔥 Delete student error:", err);
-    res.status(500).json({ error: "Server error deleting student" });
+    res.status(500).json({ 
+      error: "Server error deleting student",
+      details: err.message 
+    });
   }
 };
 
 /**
- * =====================================================
  * POST - Convert Student to SSC
- * =====================================================
  */
 exports.convertToSSC = async (req, res) => {
   try {
     const { idNumber, position } = req.body;
 
     if (!idNumber || !position) {
-      return res.status(400).json({ error: "Missing data" });
+      return res.status(400).json({ error: "Missing ID number or position" });
     }
 
     console.log("🔄 Converting student to SSC:", idNumber, "Position:", position);
 
-    // Ensure student exists
-    const student = await Student.findOne({ idNumber: Number(idNumber), role: "student" });
-    if (!student) return res.status(404).json({ error: "Student not found" });
+    // Ensure student exists and is a regular student
+    const student = await User.findOne({ 
+      idNumber: Number(idNumber), 
+      role: "student" 
+    });
+
+    if (!student) {
+      return res.status(404).json({ error: "Student not found or not eligible for conversion" });
+    }
 
     // Ensure student is fully registered
     if (!student.email || !student.photoURL) {
@@ -289,16 +372,74 @@ exports.convertToSSC = async (req, res) => {
     }
 
     // Convert to SSC
-    const updated = await Student.convertToSSC(Number(idNumber), position.trim());
+    const updated = await User.findOneAndUpdate(
+      { idNumber: Number(idNumber), role: "student" },
+      { 
+        role: "ssc",
+        sscPosition: position.trim()
+      },
+      { new: true, runValidators: true }
+    ).select("-password -verificationToken -verificationTokenExpiry -__v");
 
-    console.log("✅ Student converted to SSC:", updated);
+    console.log("✅ Student converted to SSC:", updated.idNumber);
 
     res.json({
-      message: "✅ Student converted to SSC",
+      message: "Student converted to SSC successfully",
       sscUser: updated,
     });
   } catch (err) {
     console.error("🔥 Convert SSC error:", err);
-    res.status(500).json({ error: "Server error converting to SSC" });
+    res.status(500).json({ 
+      error: "Server error converting to SSC",
+      details: err.message 
+    });
+  }
+};
+
+/**
+ * POST - Remove SSC Status (Convert back to regular student)
+ */
+exports.removeFromSSC = async (req, res) => {
+  try {
+    const { idNumber } = req.body;
+
+    if (!idNumber) {
+      return res.status(400).json({ error: "Missing ID number" });
+    }
+
+    console.log("🔄 Removing SSC status from:", idNumber);
+
+    // Find the SSC user
+    const sscUser = await User.findOne({ 
+      idNumber: Number(idNumber), 
+      role: "ssc" 
+    });
+
+    if (!sscUser) {
+      return res.status(404).json({ error: "SSC officer not found" });
+    }
+
+    // Convert back to regular student
+    const updated = await User.findOneAndUpdate(
+      { idNumber: Number(idNumber), role: "ssc" },
+      { 
+        role: "student",
+        sscPosition: "" // Clear the SSC position
+      },
+      { new: true, runValidators: true }
+    ).select("-password -verificationToken -verificationTokenExpiry -__v");
+
+    console.log("✅ SSC status removed, user reverted to student:", updated.idNumber);
+
+    res.json({
+      message: "SSC officer removed successfully",
+      student: updated,
+    });
+  } catch (err) {
+    console.error("🔥 Remove SSC error:", err);
+    res.status(500).json({ 
+      error: "Server error removing SSC status",
+      details: err.message 
+    });
   }
 };

@@ -1,3 +1,6 @@
+// ============================================
+// 1. models/Student.js - FIXED
+// ============================================
 const User = require("./User");
 
 class Student {
@@ -6,7 +9,6 @@ class Student {
   }
 
   static find(query = {}) {
-    // ✅ FIX: Add .select() to exclude sensitive fields
     return User.find({ ...this.baseQuery(), ...query }).select(
       "-password -verificationToken -verificationTokenExpiry -__v"
     );
@@ -18,13 +20,12 @@ class Student {
     );
   }
 
-  static async count(query = {}) {
-    // ✅ FIX: Ensure count uses the same base query
+  // ✅ FIXED: Changed from count() to countDocuments()
+  static async countDocuments(query = {}) {
     return User.countDocuments({ ...this.baseQuery(), ...query });
   }
 
   static async create(data) {
-    // ✅ FIX: Ensure defaults are set properly
     const studentData = {
       role: "student",
       email: data.email || "",
@@ -37,7 +38,6 @@ class Student {
 
     const newStudent = await User.create(studentData);
     
-    // Return without password
     return User.findById(newStudent._id).select(
       "-password -verificationToken -verificationTokenExpiry -__v"
     );
