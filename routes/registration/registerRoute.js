@@ -93,7 +93,7 @@ const sendVerificationEmail = async (email, verificationToken, userName) => {
                       If you didn't create an account, please ignore this email.
                     </p>
                     <p style="color: #6c757d; font-size: 12px; line-height: 18px; margin: 0;">
-                      © 2024 AttendSure. All rights reserved.
+                      © 2025 AttendSure. All rights reserved.
                     </p>
                   </td>
                 </tr>
@@ -148,7 +148,17 @@ router.post("/", async (req, res) => {
       console.log("✅ Verification email sent to:", user.email);
     } catch (emailError) {
       console.error("📧 Email sending failed:", emailError);
-      // Continue even if email fails
+      // Rollback the user if email fails
+      user.email = undefined;
+      user.password = undefined;
+      user.verificationToken = undefined;
+      user.verificationTokenExpiry = undefined;
+      user.isVerified = false;
+      await user.save();
+      
+      return res.status(500).json({ 
+        error: "Failed to send verification email. Please try again." 
+      });
     }
 
     const userInfo = {
@@ -167,7 +177,7 @@ router.post("/", async (req, res) => {
     };
 
     res.status(200).json({ 
-      message: "✅ Registration successful. Please check your email to verify your account.", 
+      message: "✅ Registration successful! Please check your email to verify your account.", 
       user: userInfo 
     });
   } catch (err) {
@@ -182,7 +192,10 @@ router.get("/verify-email", async (req, res) => {
     const { token } = req.query;
 
     if (!token) {
-      return res.status(400).json({ error: "Verification token is required" });
+      return res.status(400).json({ 
+        success: false,
+        error: "Verification token is required" 
+      });
     }
 
     const user = await User.findOne({
@@ -191,7 +204,10 @@ router.get("/verify-email", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ error: "Invalid or expired verification token" });
+      return res.status(400).json({ 
+        success: false,
+        error: "Invalid or expired verification token" 
+      });
     }
 
     user.isVerified = true;
@@ -200,12 +216,20 @@ router.get("/verify-email", async (req, res) => {
     await user.save();
 
     res.status(200).json({ 
-      message: "✅ Email verified successfully! You can now login to your account.",
-      success: true
+      success: true,
+      message: "Email verified successfully! You can now login to your account.",
+      user: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email
+      }
     });
   } catch (err) {
     console.error("🔥 Verification Error:", err);
-    res.status(500).json({ error: "Server error during email verification" });
+    res.status(500).json({ 
+      success: false,
+      error: "Server error during email verification" 
+    });
   }
 });
 

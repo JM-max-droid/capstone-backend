@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Backend for Attendsur app",
+  "description": "Backend for Attendsure app",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
