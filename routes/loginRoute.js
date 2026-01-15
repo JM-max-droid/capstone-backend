@@ -18,6 +18,14 @@ router.post("/", async (req, res) => {
     if (!user)
       return res.status(400).json({ error: "Invalid email or password" });
 
+    // ✅ CHECK IF EMAIL IS VERIFIED
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        error: "Please verify your email first. Check your inbox for the verification link.",
+        needsVerification: true 
+      });
+    }
+
     // 🔹 Compare password with hashed password
     const isMatch = await bcrypt.compare(password, user.password || "");
     if (!isMatch)
