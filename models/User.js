@@ -44,13 +44,13 @@ const UserSchema = new mongoose.Schema(
     course: {
       type: String,
       trim: true,
-      default: "", // College only
+      default: "",
       index: true,
     },
     strand: {
       type: String,
       trim: true,
-      default: "", // Senior High only
+      default: "",
       index: true,
     },
     yearLevel: {
@@ -92,14 +92,6 @@ const UserSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-    },
-
-    // 📧 Email Verification
-    verificationToken: String,
-    verificationTokenExpiry: Date,
-    isVerified: {
-      type: Boolean,
-      default: false,
     },
   },
   { timestamps: true }
