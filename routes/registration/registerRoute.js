@@ -16,7 +16,8 @@ const transporter = nodemailer.createTransport({
 
 // 📧 Send Verification Email Function
 const sendVerificationEmail = async (email, verificationToken, userName) => {
-  const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+  // ✅ FIXED: Changed to match your app.js route: /api/register/verify
+  const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
   
   const mailOptions = {
     from: '"AttendSure" <' + process.env.GMAIL_USER + '>',
@@ -183,53 +184,6 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error("🔥 Registration Error:", err);
     res.status(500).json({ error: "Server error during registration" });
-  }
-});
-
-// ✅ Email Verification Endpoint
-router.get("/verify-email", async (req, res) => {
-  try {
-    const { token } = req.query;
-
-    if (!token) {
-      return res.status(400).json({ 
-        success: false,
-        error: "Verification token is required" 
-      });
-    }
-
-    const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpiry: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ 
-        success: false,
-        error: "Invalid or expired verification token" 
-      });
-    }
-
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpiry = undefined;
-    await user.save();
-
-    res.status(200).json({ 
-      success: true,
-      message: "Email verified successfully! You can now login to your account.",
-      user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email
-      }
-    });
-  } catch (err) {
-    console.error("🔥 Verification Error:", err);
-    res.status(500).json({ 
-      success: false,
-      error: "Server error during email verification" 
-    });
   }
 });
 
