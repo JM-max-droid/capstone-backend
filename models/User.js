@@ -94,9 +94,11 @@ const UserSchema = new mongoose.Schema(
       type: String,
     },
 
-    // 📧 Email Verification
-    verificationToken: String,
-    verificationTokenExpiry: Date,
+    // 📧 Email Verification - CONSISTENT FIELD NAMES
+    verificationCode: {
+      type: String,
+      default: null
+    },
     isVerified: {
       type: Boolean,
       default: false,

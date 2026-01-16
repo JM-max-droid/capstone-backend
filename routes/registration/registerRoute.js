@@ -2,25 +2,20 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const sgMail = require("@sendgrid/mail");
 const User = require("../../models/User");
 
-// 📧 Email Configuration
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS
-  }
-});
+// 📧 Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // 📧 Send Verification Email Function
 const sendVerificationEmail = async (email, verificationToken, userName) => {
-  const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+  // ✅ Using attendsure://verify-email/token format for deep linking
+  const verificationLink = `attendsure://verify-email/${verificationToken}`;
   
-  const mailOptions = {
-    from: '"AttendSure" <' + process.env.GMAIL_USER + '>',
+  const msg = {
     to: email,
+    from: process.env.SENDER_EMAIL, // Must be verified in SendGrid
     subject: 'Verify Your Email - AttendSure',
     html: `
       <!DOCTYPE html>
@@ -67,9 +62,9 @@ const sendVerificationEmail = async (email, verificationToken, userName) => {
                     </table>
                     
                     <p style="color: #666666; font-size: 14px; line-height: 22px; margin: 30px 0 0 0;">
-                      Or copy and paste this link into your browser:
+                      If the button doesn't work, copy and paste this link into your mobile browser:
                     </p>
-                    <p style="color: #0B84FF; font-size: 13px; word-break: break-all; margin: 10px 0 0 0;">
+                    <p style="color: #0B84FF; font-size: 13px; word-break: break-all; margin: 10px 0 0 0; background-color: #f8f9fa; padding: 10px; border-radius: 4px;">
                       ${verificationLink}
                     </p>
                     
@@ -107,38 +102,63 @@ const sendVerificationEmail = async (email, verificationToken, userName) => {
     `
   };
 
-  await transporter.sendMail(mailOptions);
+  await sgMail.send(msg);
 };
 
 // ✅ POST registration (WITH EMAIL VERIFICATION)
 router.post("/", async (req, res) => {
   try {
     const { idNumber, email, password, photoURL, qrCode } = req.body;
-    if (!idNumber || !email || !password)
+    
+    if (!idNumber || !email || !password) {
       return res.status(400).json({ error: "ID, email, and password are required" });
+    }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Check if user exists with this ID
     const user = await User.findOne({ idNumber: Number(idNumber) });
-    if (!user) return res.status(404).json({ error: "User not found with that ID" });
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that ID" });
+    }
 
-    if (user.email && user.password)
+    // Check if already registered
+    if (user.email && user.password) {
       return res.status(400).json({ error: "This user is already registered" });
+    }
 
-    // 🔐 Generate verification token
+    // Check if email is already used by another user
+    const existingEmail = await User.findOne({ 
+      email: email.trim().toLowerCase(),
+      _id: { $ne: user._id }
+    });
+    if (existingEmail) {
+      return res.status(400).json({ error: "This email is already registered" });
+    }
+
+    // 🔐 Generate verification token (64 characters for extra security)
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Update user fields
     user.email = email.trim().toLowerCase();
     user.password = hashedPassword;
-    user.verificationToken = verificationToken;
-    user.verificationTokenExpiry = verificationTokenExpiry;
+    user.verificationCode = verificationToken;
     user.isVerified = false;
+    
     if (photoURL) user.photoURL = photoURL;
     if (qrCode) user.qrCode = qrCode;
 
+    // Save user first
     await user.save();
 
-    // 📧 Send verification email
+    // 📧 Send verification email via SendGrid
     try {
       await sendVerificationEmail(
         user.email, 
@@ -147,20 +167,21 @@ router.post("/", async (req, res) => {
       );
       console.log("✅ Verification email sent to:", user.email);
     } catch (emailError) {
-      console.error("📧 Email sending failed:", emailError);
-      // Rollback the user if email fails
+      console.error("📧 SendGrid email error:", emailError.response?.body || emailError);
+      
+      // Rollback the user registration if email fails
       user.email = undefined;
       user.password = undefined;
-      user.verificationToken = undefined;
-      user.verificationTokenExpiry = undefined;
+      user.verificationCode = undefined;
       user.isVerified = false;
       await user.save();
       
       return res.status(500).json({ 
-        error: "Failed to send verification email. Please try again." 
+        error: "Failed to send verification email. Please check your email address and try again." 
       });
     }
 
+    // Return user info (without sensitive data)
     const userInfo = {
       idNumber: user.idNumber,
       firstName: user.firstName,
@@ -177,59 +198,13 @@ router.post("/", async (req, res) => {
     };
 
     res.status(200).json({ 
-      message: "✅ Registration successful! Please check your email to verify your account.", 
+      success: true,
+      message: "Registration successful! Please check your email to verify your account.", 
       user: userInfo 
     });
   } catch (err) {
     console.error("🔥 Registration Error:", err);
     res.status(500).json({ error: "Server error during registration" });
-  }
-});
-
-// ✅ Email Verification Endpoint
-router.get("/verify-email", async (req, res) => {
-  try {
-    const { token } = req.query;
-
-    if (!token) {
-      return res.status(400).json({ 
-        success: false,
-        error: "Verification token is required" 
-      });
-    }
-
-    const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpiry: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return res.status(400).json({ 
-        success: false,
-        error: "Invalid or expired verification token" 
-      });
-    }
-
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpiry = undefined;
-    await user.save();
-
-    res.status(200).json({ 
-      success: true,
-      message: "Email verified successfully! You can now login to your account.",
-      user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email
-      }
-    });
-  } catch (err) {
-    console.error("🔥 Verification Error:", err);
-    res.status(500).json({ 
-      success: false,
-      error: "Server error during email verification" 
-    });
   }
 });
 
