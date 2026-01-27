@@ -65,7 +65,7 @@ const UserSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🏅 SSC
+    // 🏅 SSC Position
     sscPosition: {
       type: String,
       trim: true,
@@ -82,22 +82,41 @@ const UserSchema = new mongoose.Schema(
       default: "",
     },
 
-    // 🔑 Login
+    // 🔑 Authentication
     email: {
       type: String,
       unique: true,
-      sparse: true,
+      sparse: true, // allows null/undefined values
       lowercase: true,
       trim: true,
     },
     password: {
       type: String,
     },
+
+    // ✅ EMAIL VERIFICATION FIELDS (NEW!)
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+    },
+    verificationTokenExpiry: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  { 
+    timestamps: true // adds createdAt and updatedAt
+  }
 );
 
-// 🔍 Text search
+// 🔍 Text search index
 UserSchema.index({ firstName: "text", lastName: "text" });
+
+// 📧 Email index for faster lookups
+UserSchema.index({ email: 1 });
 
 module.exports = mongoose.model("User", UserSchema);

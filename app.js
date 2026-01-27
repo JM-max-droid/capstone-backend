@@ -10,6 +10,7 @@ const nodemailer = require("nodemailer");
 const lookupRoute = require("./routes/registration/lookupRoute");
 const registerRoute = require("./routes/registration/registerRoute");
 const verificationRoute = require("./routes/registration/verificationRoute");
+const resendVerificationRoute = require("./routes/registration/resendVerificationRoute"); // 🆕 NEW!
 const loginRoute = require("./routes/loginRoute");
 const realtimePhotoRoute = require("./routes/registration/realtimephotoRoute");
 const qrcodeRoute = require("./routes/registration/qrcodeRoute");
@@ -63,6 +64,7 @@ const transporter = nodemailer.createTransport({
 app.use("/api/register/qrcode", qrcodeRoute);
 app.use("/api/register/photo", realtimePhotoRoute);
 app.use("/api/register/verify", verificationRoute);
+app.use("/api/register/resend-verification", resendVerificationRoute); // 🆕 ADDED!
 app.use("/api/register", registerRoute);
 
 // 2️⃣ OSS sub-routes before main /api/oss
@@ -73,7 +75,7 @@ app.use("/api/ssc/attendance", sscAttendanceRoute); // SSC attendance
 app.use("/api/attendance", ossAttendanceRoute);      // OSS attendance
 
 // 4️⃣ Student / Scanner routes
-app.use("/api/scanner", scannerLookupRoute); // ✅ matches STUDENT_URL in config.ts
+app.use("/api/scanner", scannerLookupRoute); // ✅ matches SCANNER_LOOKUP_URL in config.ts
 app.use("/api/student", studentRoute);       // Student CRUD operations
 app.use("/api/users", ossUserRoute);         // OSS user lookup
 
@@ -93,11 +95,13 @@ app.get("/", (req, res) => {
   res.json({
     message: "🚀 AttendSure Backend API is running!",
     endpoints: {
+      register: "POST /api/register",
+      verify: "GET /api/register/verify?token=xxx",
+      resendVerification: "POST /api/register/resend-verification",
+      login: "POST /api/login",
       scanner: "GET /api/scanner/:idNumber",
       attendance: "POST /api/attendance",
       events: "GET /api/events",
-      register: "POST /api/register",
-      login: "POST /api/login"
     }
   });
 });
