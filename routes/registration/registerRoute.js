@@ -5,12 +5,14 @@ const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const User = require("../../models/User");
 
-// ✅ EMAIL CONFIGURATION
+// ✅ SENDGRID EMAIL CONFIGURATION
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: 'smtp.sendgrid.net',
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.GMAIL_USER || "your-email@gmail.com",
-    pass: process.env.GMAIL_PASS || "your-app-password",
+    user: 'apikey',
+    pass: process.env.SENDGRID_API_KEY,
   },
 });
 
@@ -18,15 +20,11 @@ const transporter = nodemailer.createTransport({
 const getVerificationLink = (token) => {
   // For development (Expo Go):
   if (process.env.NODE_ENV === 'development') {
-    // Use your local IP - find it using: ipconfig (Windows) or ifconfig (Mac/Linux)
     return `exp://192.168.1.100:8081/--/verify-email?token=${token}`;
   }
   
   // For production (with deep linking):
   return `myapp://verify-email?token=${token}`;
-  
-  // Or use FRONTEND_URL from .env:
-  // return `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 };
 
 // ✅ POST REGISTRATION WITH EMAIL VERIFICATION
@@ -90,7 +88,7 @@ router.post("/", async (req, res) => {
     const verificationLink = getVerificationLink(verificationToken);
     
     const mailOptions = {
-      from: process.env.GMAIL_USER || "your-email@gmail.com",
+      from: 'johnmarksena04@gmail.com',
       to: user.email,
       subject: "Verify Your Email - AttendSure Portal",
       html: `
