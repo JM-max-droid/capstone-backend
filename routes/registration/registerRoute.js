@@ -15,7 +15,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SENDGRID_API_KEY,
   },
 });
-
 // ✅ POST REGISTRATION WITH EMAIL VERIFICATION
 router.post("/", async (req, res) => {
   try {
