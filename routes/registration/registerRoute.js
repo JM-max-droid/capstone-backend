@@ -16,17 +16,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ✅ VERIFICATION LINK GENERATOR
-const getVerificationLink = (token) => {
-  // For development (Expo Go):
-  if (process.env.NODE_ENV === 'development') {
-    return `exp://192.168.1.100:8081/--/verify-email?token=${token}`;
-  }
-  
-  // For production (with deep linking):
-  return `myapp://verify-email?token=${token}`;
-};
-
 // ✅ POST REGISTRATION WITH EMAIL VERIFICATION
 router.post("/", async (req, res) => {
   try {
@@ -84,8 +73,8 @@ router.post("/", async (req, res) => {
 
     await user.save();
 
-    // 📧 SEND VERIFICATION EMAIL
-    const verificationLink = getVerificationLink(verificationToken);
+    // 📧 SEND VERIFICATION EMAIL (WEB LINK)
+    const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
     
     const mailOptions = {
       from: 'johnmarksena04@gmail.com',
@@ -190,7 +179,17 @@ router.post("/", async (req, res) => {
       console.log("✅ Verification email sent to:", user.email);
     } catch (emailError) {
       console.error("❌ Failed to send email:", emailError);
-      // Continue even if email fails - user can request resend later
+      // Rollback user registration if email fails
+      user.email = undefined;
+      user.password = undefined;
+      user.verificationToken = undefined;
+      user.verificationTokenExpiry = undefined;
+      user.isVerified = false;
+      await user.save();
+      
+      return res.status(500).json({ 
+        error: "Failed to send verification email. Please try again." 
+      });
     }
 
     // ✅ SUCCESS RESPONSE
