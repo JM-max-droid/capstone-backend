@@ -16,13 +16,31 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// 🔍 VERIFY SENDGRID CONNECTION ON STARTUP
+transporter.verify((error, success) => {
+  if (error) {
+    console.error("❌ SendGrid connection FAILED:", error);
+    console.error("⚠️  Check if SENDGRID_API_KEY is set in environment variables");
+  } else {
+    console.log("✅ SendGrid is ready to send emails");
+  }
+});
+
 // ✅ POST REGISTRATION WITH EMAIL VERIFICATION
 router.post("/", async (req, res) => {
+  console.log("\n🔵 ========== REGISTRATION REQUEST ==========");
+  console.log("📧 Request body:", {
+    idNumber: req.body.idNumber,
+    email: req.body.email,
+    hasPassword: !!req.body.password,
+  });
+
   try {
     const { idNumber, email, password, photoURL, qrCode } = req.body;
 
     // Validation
     if (!idNumber || !email || !password) {
+      console.log("❌ Validation failed: Missing required fields");
       return res.status(400).json({ 
         error: "ID, email, and password are required" 
       });
@@ -31,13 +49,17 @@ router.post("/", async (req, res) => {
     // Find user by ID
     const user = await User.findOne({ idNumber: Number(idNumber) });
     if (!user) {
+      console.log("❌ User not found with ID:", idNumber);
       return res.status(404).json({ 
         error: "User not found with that ID" 
       });
     }
 
+    console.log("✅ User found:", user.firstName, user.lastName);
+
     // Check if already registered
     if (user.email && user.password) {
+      console.log("❌ User already registered");
       return res.status(400).json({ 
         error: "This user is already registered" 
       });
@@ -49,6 +71,7 @@ router.post("/", async (req, res) => {
       _id: { $ne: user._id }
     });
     if (existingEmail) {
+      console.log("❌ Email already in use by another account");
       return res.status(400).json({ 
         error: "This email is already registered to another account" 
       });
@@ -56,15 +79,19 @@ router.post("/", async (req, res) => {
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("✅ Password hashed successfully");
 
     // 🔑 GENERATE VERIFICATION TOKEN
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationTokenExpiry = Date.now() + 1000 * 60 * 60; // 1 hour
 
+    console.log("✅ Verification token generated");
+    console.log("🔗 Token:", verificationToken.substring(0, 20) + "...");
+
     // Update user
     user.email = email.trim().toLowerCase();
     user.password = hashedPassword;
-    user.isVerified = false; // ✅ NOT VERIFIED YET
+    user.isVerified = false;
     user.verificationToken = verificationToken;
     user.verificationTokenExpiry = verificationTokenExpiry;
     
@@ -72,9 +99,14 @@ router.post("/", async (req, res) => {
     if (qrCode) user.qrCode = qrCode;
 
     await user.save();
+    console.log("✅ User data saved to database (isVerified: false)");
 
-    // 📧 SEND VERIFICATION EMAIL (WEB LINK)
+    // 📧 SEND VERIFICATION EMAIL
     const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
+    
+    console.log("\n📧 ========== SENDING EMAIL ==========");
+    console.log("📬 To:", user.email);
+    console.log("🔗 Verification link:", verificationLink);
     
     const mailOptions = {
       from: 'attendsure6@gmail.com',
@@ -175,20 +207,42 @@ router.post("/", async (req, res) => {
     };
 
     try {
-      await transporter.sendMail(mailOptions);
-      console.log("✅ Verification email sent to:", user.email);
+      console.log("📤 Attempting to send email via SendGrid...");
+      const info = await transporter.sendMail(mailOptions);
+      
+      console.log("\n✅ ========== EMAIL SENT SUCCESSFULLY ==========");
+      console.log("📧 Email sent to:", user.email);
+      console.log("📨 Message ID:", info.messageId);
+      console.log("✉️  Response:", info.response);
+      console.log("================================================\n");
+
     } catch (emailError) {
-      console.error("❌ Failed to send email:", emailError);
+      console.error("\n❌ ========== EMAIL SENDING FAILED ==========");
+      console.error("📧 Failed to send email to:", user.email);
+      console.error("🔥 Error details:", emailError);
+      
+      if (emailError.response) {
+        console.error("📮 SendGrid response:", emailError.response);
+      }
+      if (emailError.code) {
+        console.error("🔢 Error code:", emailError.code);
+      }
+      
+      console.error("================================================\n");
+
       // Rollback user registration if email fails
+      console.log("🔄 Rolling back registration...");
       user.email = undefined;
       user.password = undefined;
       user.verificationToken = undefined;
       user.verificationTokenExpiry = undefined;
       user.isVerified = false;
       await user.save();
+      console.log("✅ User data rolled back");
       
       return res.status(500).json({ 
-        error: "Failed to send verification email. Please try again." 
+        error: "Failed to send verification email. Please try again later.",
+        details: process.env.NODE_ENV === 'development' ? emailError.message : undefined
       });
     }
 
@@ -211,6 +265,9 @@ router.post("/", async (req, res) => {
       isVerified: user.isVerified,
     };
 
+    console.log("✅ Registration successful - email verification required");
+    console.log("🔵 ========================================\n");
+
     res.status(200).json({
       success: true,
       message: "✅ Registration successful! Please check your email to verify your account.",
@@ -219,9 +276,14 @@ router.post("/", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("🔥 Registration Error:", err);
+    console.error("\n🔥 ========== REGISTRATION ERROR ==========");
+    console.error("Error:", err);
+    console.error("Stack:", err.stack);
+    console.error("==========================================\n");
+    
     res.status(500).json({ 
-      error: "Server error during registration" 
+      error: "Server error during registration",
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 });

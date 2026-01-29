@@ -5,11 +5,16 @@ const User = require("../../models/User");
 // ✅ GET /api/register/verify?token=xxx
 // This handles email verification via browser (web interface)
 router.get("/", async (req, res) => {
+  console.log("\n🔵 ========== VERIFICATION REQUEST ==========");
+  
   try {
     const { token } = req.query;
     
+    console.log("🔑 Token received:", token ? token.substring(0, 20) + "..." : "NONE");
+    
     // No token provided
     if (!token) {
+      console.log("❌ No token provided in URL");
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -66,6 +71,7 @@ router.get("/", async (req, res) => {
     }
 
     // Find user with this token
+    console.log("🔍 Searching for user with token...");
     const user = await User.findOne({
       verificationToken: token,
       verificationTokenExpiry: { $gt: Date.now() },
@@ -73,6 +79,18 @@ router.get("/", async (req, res) => {
 
     // Token invalid or expired
     if (!user) {
+      console.log("❌ Token invalid or expired");
+      console.log("⏰ Current time:", new Date(Date.now()).toISOString());
+      
+      // Check if token exists but expired
+      const expiredUser = await User.findOne({ verificationToken: token });
+      if (expiredUser) {
+        console.log("⚠️  Token found but expired for user:", expiredUser.email);
+        console.log("⏰ Token expired at:", new Date(expiredUser.verificationTokenExpiry).toISOString());
+      } else {
+        console.log("⚠️  Token not found in database");
+      }
+      
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -145,8 +163,13 @@ router.get("/", async (req, res) => {
       `);
     }
 
+    console.log("✅ User found:", user.firstName, user.lastName);
+    console.log("📧 Email:", user.email);
+    console.log("✓ Token valid, expiry:", new Date(user.verificationTokenExpiry).toISOString());
+
     // Already verified
     if (user.isVerified) {
+      console.log("⚠️  User already verified");
       return res.send(`
         <!DOCTYPE html>
         <html>
@@ -219,12 +242,21 @@ router.get("/", async (req, res) => {
     }
 
     // ✅ VERIFY THE USER
+    console.log("🔄 Updating user verification status...");
+    
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpiry = undefined;
+    
     await user.save();
 
-    console.log("✅ Email verified successfully for:", user.email);
+    console.log("\n✅ ========== EMAIL VERIFIED SUCCESSFULLY ==========");
+    console.log("👤 User:", user.firstName, user.lastName);
+    console.log("📧 Email:", user.email);
+    console.log("🆔 User ID:", user._id);
+    console.log("✓ isVerified: true");
+    console.log("🔑 Token cleared");
+    console.log("===================================================\n");
 
     // Success response
     return res.send(`
@@ -346,7 +378,11 @@ router.get("/", async (req, res) => {
     `);
 
   } catch (err) {
-    console.error("🔥 Verification Error:", err);
+    console.error("\n🔥 ========== VERIFICATION ERROR ==========");
+    console.error("Error:", err);
+    console.error("Stack:", err.stack);
+    console.error("==========================================\n");
+    
     return res.status(500).send(`
       <!DOCTYPE html>
       <html>
