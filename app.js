@@ -31,6 +31,9 @@ const ossUserRoute = require("./routes/oss/userRoute");
 // ===============================
 const app = express();
 
+// ✅ FIX: Trust proxy for Render deployment
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
