@@ -59,7 +59,7 @@ router.post("/", async (req, res) => {
     const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
     
     const mailOptions = {
-      from: 'johnmarksena04@gmail.com',
+      from: 'attendsure6@gmail.com',
       to: user.email,
       subject: "Resend: Verify Your Email - AttendSure Portal",
       html: `

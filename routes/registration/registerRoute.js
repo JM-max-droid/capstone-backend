@@ -15,6 +15,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SENDGRID_API_KEY,
   },
 });
+
 // ✅ POST REGISTRATION WITH EMAIL VERIFICATION
 router.post("/", async (req, res) => {
   try {
@@ -76,7 +77,7 @@ router.post("/", async (req, res) => {
     const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
     
     const mailOptions = {
-      from: 'johnmarksena04@gmail.com',
+      from: 'attendsure6@gmail.com',
       to: user.email,
       subject: "Verify Your Email - AttendSure Portal",
       html: `
