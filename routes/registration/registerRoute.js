@@ -1,11 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const User = require("../../models/User");
-const { sendVerificationEmail } = require("../../utils/emailService");
 
-// ✅ POST REGISTRATION WITH EMAIL VERIFICATION
+// ✅ POST REGISTRATION (WITHOUT EMAIL VERIFICATION)
 router.post("/", async (req, res) => {
   console.log("\n🔵 ========== REGISTRATION REQUEST ==========");
   console.log("📧 Request body:", {
@@ -60,63 +58,15 @@ router.post("/", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log("✅ Password hashed successfully");
 
-    // 🔑 GENERATE VERIFICATION TOKEN
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenExpiry = Date.now() + 1000 * 60 * 60; // 1 hour
-
-    console.log("✅ Verification token generated");
-    console.log("🔗 Token:", verificationToken.substring(0, 20) + "...");
-
     // Update user
     user.email = email.trim().toLowerCase();
     user.password = hashedPassword;
-    user.isVerified = false;
-    user.verificationToken = verificationToken;
-    user.verificationTokenExpiry = verificationTokenExpiry;
     
     if (photoURL) user.photoURL = photoURL;
     if (qrCode) user.qrCode = qrCode;
 
     await user.save();
-    console.log("✅ User data saved to database (isVerified: false)");
-
-    // 📧 SEND VERIFICATION EMAIL using SendGrid HTTP API
-    console.log("\n📧 ========== SENDING EMAIL ==========");
-    console.log("📬 To:", user.email);
-    
-    try {
-      await sendVerificationEmail(user, verificationToken);
-      
-      console.log("\n✅ ========== EMAIL SENT SUCCESSFULLY ==========");
-      console.log("📧 Email sent to:", user.email);
-      console.log("================================================\n");
-
-    } catch (emailError) {
-      console.error("\n❌ ========== EMAIL SENDING FAILED ==========");
-      console.error("📧 Failed to send email to:", user.email);
-      console.error("🔥 Error details:", emailError);
-      
-      if (emailError.response) {
-        console.error("📮 SendGrid response:", emailError.response.body);
-      }
-      
-      console.error("================================================\n");
-
-      // Rollback user registration if email fails
-      console.log("🔄 Rolling back registration...");
-      user.email = undefined;
-      user.password = undefined;
-      user.verificationToken = undefined;
-      user.verificationTokenExpiry = undefined;
-      user.isVerified = false;
-      await user.save();
-      console.log("✅ User data rolled back");
-      
-      return res.status(500).json({ 
-        error: "Failed to send verification email. Please try again later.",
-        details: process.env.NODE_ENV === 'development' ? emailError.message : undefined
-      });
-    }
+    console.log("✅ User data saved to database");
 
     // ✅ SUCCESS RESPONSE
     const userInfo = {
@@ -134,17 +84,15 @@ router.post("/", async (req, res) => {
       photoURL: user.photoURL || null,
       qrCode: user.qrCode || null,
       role: user.role,
-      isVerified: user.isVerified,
     };
 
-    console.log("✅ Registration successful - email verification required");
+    console.log("✅ Registration successful");
     console.log("🔵 ========================================\n");
 
     res.status(200).json({
       success: true,
-      message: "✅ Registration successful! Please check your email to verify your account.",
+      message: "✅ Registration successful! You can now login.",
       user: userInfo,
-      requiresVerification: true,
     });
 
   } catch (err) {
