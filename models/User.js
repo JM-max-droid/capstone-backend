@@ -1,3 +1,4 @@
+// models/User.js
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
@@ -85,16 +86,30 @@ const UserSchema = new mongoose.Schema(
     email: {
       type: String,
       unique: true,
-      sparse: true,
+      sparse: true, // allows null/undefined values
       lowercase: true,
       trim: true,
     },
     password: {
       type: String,
     },
+
+    // ✅ EMAIL VERIFICATION FIELDS (NEW!)
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: {
+      type: String,
+      default: null,
+    },
+    verificationTokenExpiry: {
+      type: Date,
+      default: null,
+    },
   },
   { 
-    timestamps: true
+    timestamps: true // adds createdAt and updatedAt
   }
 );
 

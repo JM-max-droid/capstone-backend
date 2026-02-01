@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ UNIVERSAL LOGIN
+// ✅ UNIVERSAL LOGIN WITH EMAIL VERIFICATION CHECK
 router.post("/", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -32,6 +32,16 @@ router.post("/", async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ 
         error: "Invalid email or password" 
+      });
+    }
+
+    // 🔒 CHECK IF EMAIL IS VERIFIED
+    if (!user.isVerified) {
+      return res.status(403).json({ 
+        success: false,
+        error: "Please verify your email before logging in. Check your inbox for the verification link.",
+        requiresVerification: true,
+        email: user.email,
       });
     }
 
@@ -63,6 +73,7 @@ router.post("/", async (req, res) => {
       photoURL: user.photoURL || null,
       qrCode: user.qrCode || null,
       role: user.role,
+      isVerified: user.isVerified,
     };
 
     // ✅ Send success response
