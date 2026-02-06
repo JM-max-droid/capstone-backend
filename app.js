@@ -26,6 +26,9 @@ const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
 
+// 🆕 SUPERADMIN ROUTE
+const superadminUserRoute = require("./routes/superadmin/userRoute");
+
 // ===============================
 // ✅ App Setup
 // ===============================
@@ -82,13 +85,16 @@ app.use("/api/scanner", scannerLookupRoute); // ✅ matches SCANNER_LOOKUP_URL i
 app.use("/api/student", studentRoute);       // Student CRUD operations
 app.use("/api/users", ossUserRoute);         // OSS user lookup
 
-// 5️⃣ Other specific routes
+// 🆕 5️⃣ SUPERADMIN routes
+app.use("/api/superadmin/users", superadminUserRoute); // ✅ SuperAdmin user management
+
+// 6️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
 app.use("/api/login", loginRoute);
 app.use("/api/user", userRoute);
 app.use("/api/events", eventRoute);
 
-// 6️⃣ General OSS routes (last among API routes)
+// 7️⃣ General OSS routes (last among API routes)
 app.use("/api/oss", ossRoute);
 
 // ===============================
@@ -105,6 +111,7 @@ app.get("/", (req, res) => {
       scanner: "GET /api/scanner/:idNumber",
       attendance: "POST /api/attendance",
       events: "GET /api/events",
+      superadminUsers: "GET /api/superadmin/users", // 🆕 NEW!
     }
   });
 });
