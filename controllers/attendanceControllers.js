@@ -657,7 +657,7 @@ const deleteAttendance = async (req, res) => {
 };
 
 // ============================== 
-// EXPORT ATTENDANCE TO EXCEL
+// ✅ FIXED: EXPORT ATTENDANCE TO EXCEL - MATCHES YOUR EXACT FORMAT
 // ============================== 
 const exportAttendance = async (req, res) => {
   try {
@@ -731,30 +731,50 @@ const exportAttendance = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Attendance");
 
-    sheet.columns = [
-      { header: "No.", key: "no", width: 6 },
-      { header: "Student ID", key: "id", width: 15 },
-      { header: "Name", key: "name", width: 25 },
-      { header: "Course", key: "course", width: 20 },
-      { header: "Year", key: "year", width: 8 },
-      { header: "Section", key: "section", width: 12 },
-      { header: "Date", key: "date", width: 15 },
-      { header: "Session", key: "session", width: 12 },
-      { header: "Status", key: "status", width: 12 },
-      { header: "Time In", key: "timeIn", width: 15 },
-      { header: "Time Out", key: "timeOut", width: 15 },
+    // ✅ Define column headers and structure
+    sheet.getRow(1).values = [
+      "No.",
+      "Student ID", 
+      "Name",
+      "Course",
+      "Year",
+      "Section",
+      "Date",
+      "Session",      // This will show Morning/Afternoon status
+      "",             // Empty column
+      "Time In",      // Morning/Afternoon time in
+      "",             // Empty column  
+      "Time Out"      // Morning/Afternoon time out
     ];
 
-    sheet.getRow(1).font = { bold: true };
-    sheet.getRow(1).fill = {
+    // Set column widths
+    sheet.getColumn(1).width = 6;   // No.
+    sheet.getColumn(2).width = 12;  // Student ID
+    sheet.getColumn(3).width = 25;  // Name
+    sheet.getColumn(4).width = 12;  // Course
+    sheet.getColumn(5).width = 10;  // Year
+    sheet.getColumn(6).width = 10;  // Section
+    sheet.getColumn(7).width = 15;  // Date
+    sheet.getColumn(8).width = 12;  // Session
+    sheet.getColumn(9).width = 2;   // Empty
+    sheet.getColumn(10).width = 15; // Time In
+    sheet.getColumn(11).width = 2;  // Empty
+    sheet.getColumn(12).width = 15; // Time Out
+
+    // Style header row
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Arial' };
+    headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
       fgColor: { argb: 'FF0B84FF' }
     };
-    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
     let rowNum = 1;
+    let currentRow = 2; // Start from row 2 (after header)
     
+    // Generate data rows
     filteredStudents.forEach((student) => {
       dates.forEach(date => {
         const formattedDate = new Date(date).toLocaleDateString("en-US", {
@@ -768,33 +788,45 @@ const exportAttendance = async (req, res) => {
                r.date === date
         );
 
-        sheet.addRow({
-          no: rowNum,
-          id: student.idNumber,
-          name: `${student.firstName} ${student.lastName}`,
-          course: student.course,
-          year: student.yearLevel,
-          section: student.section || "",
-          date: formattedDate,
-          session: "Morning",
-          status: record?.morningStatus ? record.morningStatus.toUpperCase() : "ABSENT",
-          timeIn: record?.morningIn || "—",
-          timeOut: record?.morningOut || "—",
-        });
+        // ✅ FIRST ROW - Student info + Morning data
+        sheet.getRow(currentRow).values = [
+          rowNum,                                          // No.
+          student.idNumber,                                // Student ID
+          `${student.firstName} ${student.lastName}`,      // Name
+          student.course,                                  // Course
+          `${student.yearLevel}${student.yearLevel === "1" ? "st" : student.yearLevel === "2" ? "nd" : student.yearLevel === "3" ? "rd" : "th"} Year`, // Year
+          student.section || "B",                          // Section
+          formattedDate,                                   // Date
+          record?.morningStatus ? record.morningStatus.toUpperCase() : "ABSENT",   // Session (Morning)
+          "",                                              // Empty
+          record?.morningIn || "—",                        // Time In (Morning)
+          "",                                              // Empty
+          record?.morningOut || "—"                        // Time Out (Morning)
+        ];
+        
+        sheet.getRow(currentRow).alignment = { vertical: 'middle' };
+        sheet.getRow(currentRow).font = { name: 'Arial' };
+        currentRow++;
 
-        sheet.addRow({
-          no: "",
-          id: "",
-          name: "",
-          course: "",
-          year: "",
-          section: "",
-          date: "",
-          session: "Afternoon",
-          status: record?.afternoonStatus ? record.afternoonStatus.toUpperCase() : "ABSENT",
-          timeIn: record?.afternoonIn || "—",
-          timeOut: record?.afternoonOut || "—",
-        });
+        // ✅ SECOND ROW - Empty student info + Afternoon data
+        sheet.getRow(currentRow).values = [
+          "",                                              // No. (empty)
+          "",                                              // Student ID (empty)
+          "",                                              // Name (empty)
+          "",                                              // Course (empty)
+          "",                                              // Year (empty)
+          "",                                              // Section (empty)
+          "",                                              // Date (empty)
+          record?.afternoonStatus ? record.afternoonStatus.toUpperCase() : "ABSENT", // Session (Afternoon)
+          "",                                              // Empty
+          record?.afternoonIn || "—",                      // Time In (Afternoon)
+          "",                                              // Empty
+          record?.afternoonOut || "—"                      // Time Out (Afternoon)
+        ];
+        
+        sheet.getRow(currentRow).alignment = { vertical: 'middle' };
+        sheet.getRow(currentRow).font = { name: 'Arial' };
+        currentRow++;
       });
       
       rowNum++;
