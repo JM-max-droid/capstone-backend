@@ -18,6 +18,7 @@ router.get("/", async (req, res) => {
     // Fetch all attendance records for this student
     const records = await Attendance.find({ studentId: userId })
       .populate("eventId", "title startDate endDate location image")
+      .populate("sscId", "firstName lastName")
       .sort({ date: -1, createdAt: -1 }) // Most recent first
       .lean();
 
