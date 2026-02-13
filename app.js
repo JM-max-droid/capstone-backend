@@ -10,13 +10,14 @@ const nodemailer = require("nodemailer");
 const lookupRoute = require("./routes/registration/lookupRoute");
 const registerRoute = require("./routes/registration/registerRoute");
 const verificationRoute = require("./routes/registration/verificationRoute");
-const resendVerificationRoute = require("./routes/registration/resendVerificationRoute"); // 🆕 NEW!
+const resendVerificationRoute = require("./routes/registration/resendVerificationRoute");
 const loginRoute = require("./routes/loginRoute");
 const realtimePhotoRoute = require("./routes/registration/realtimephotoRoute");
 const qrcodeRoute = require("./routes/registration/qrcodeRoute");
 
 const userRoute = require("./routes/student/userRoute");
 const studentRoute = require("./routes/student/studentRoute");
+const studentAttendanceRoute = require("./routes/student/attendanceRoute"); // 🆕 ADDED!
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 
@@ -70,15 +71,16 @@ const transporter = nodemailer.createTransport({
 app.use("/api/register/qrcode", qrcodeRoute);
 app.use("/api/register/photo", realtimePhotoRoute);
 app.use("/api/register/verify", verificationRoute);
-app.use("/api/register/resend-verification", resendVerificationRoute); // 🆕 ADDED!
+app.use("/api/register/resend-verification", resendVerificationRoute);
 app.use("/api/register", registerRoute);
 
 // 2️⃣ OSS sub-routes before main /api/oss
 app.use("/api/oss/notifications", notificationRoute);
 
-// 3️⃣ Attendance routes
-app.use("/api/ssc/attendance", sscAttendanceRoute); // SSC attendance
-app.use("/api/attendance", ossAttendanceRoute);      // OSS attendance
+// 3️⃣ Attendance routes (MOST SPECIFIC FIRST!)
+app.use("/api/student/attendance", studentAttendanceRoute); // 🆕 Student attendance (NEW!)
+app.use("/api/ssc/attendance", sscAttendanceRoute);         // SSC attendance
+app.use("/api/attendance", ossAttendanceRoute);             // OSS attendance (fallback)
 
 // 4️⃣ Student / Scanner routes
 app.use("/api/scanner", scannerLookupRoute); // ✅ matches SCANNER_LOOKUP_URL in config.ts
@@ -109,9 +111,11 @@ app.get("/", (req, res) => {
       resendVerification: "POST /api/register/resend-verification",
       login: "POST /api/login",
       scanner: "GET /api/scanner/:idNumber",
-      attendance: "POST /api/attendance",
+      studentAttendance: "GET /api/student/attendance?userId=xxx", // 🆕 NEW!
+      sscAttendance: "POST /api/ssc/attendance",
+      ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
-      superadminUsers: "GET /api/superadmin/users", // 🆕 NEW!
+      superadminUsers: "GET /api/superadmin/users",
     }
   });
 });
