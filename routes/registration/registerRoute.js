@@ -34,7 +34,7 @@ router.post("/", async (req, res) => {
 
     console.log("✅ User found:", user.firstName, user.lastName);
 
-    // Check if already registered
+    // Check if already registered (has BOTH email AND password)
     if (user.email && user.password) {
       console.log("❌ User already registered");
       return res.status(400).json({ 
@@ -54,39 +54,49 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Hash password
+    // ✅ FIX: Hash password HERE manually
+    // Then use updateOne to BYPASS the pre-save hook in User model
+    // This prevents DOUBLE HASHING if your User model has a pre-save hook
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log("✅ Password hashed successfully");
 
-    // Update user
-    user.email = email.trim().toLowerCase();
-    user.password = hashedPassword;
-    
-    if (photoURL) user.photoURL = photoURL;
-    if (qrCode) user.qrCode = qrCode;
+    // ✅ FIX: Use updateOne instead of user.save()
+    // This bypasses any pre-save middleware that might re-hash the password!
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          email: email.trim().toLowerCase(),
+          password: hashedPassword,
+          ...(photoURL && { photoURL }),
+          ...(qrCode && { qrCode }),
+        }
+      }
+    );
+    console.log("✅ User data saved to database (via updateOne - no pre-save hook triggered)");
 
-    await user.save();
-    console.log("✅ User data saved to database");
+    // Fetch updated user to return correct info
+    const updatedUser = await User.findById(user._id);
 
     // ✅ SUCCESS RESPONSE
     const userInfo = {
-      idNumber: user.idNumber,
-      firstName: user.firstName,
-      middleName: user.middleName,
-      lastName: user.lastName,
-      age: user.age,
-      course: user.course,
-      strand: user.strand,
-      yearLevel: user.yearLevel,
-      section: user.section,
-      sscPosition: user.sscPosition,
-      email: user.email,
-      photoURL: user.photoURL || null,
-      qrCode: user.qrCode || null,
-      role: user.role,
+      idNumber: updatedUser.idNumber,
+      firstName: updatedUser.firstName,
+      middleName: updatedUser.middleName,
+      lastName: updatedUser.lastName,
+      age: updatedUser.age,
+      course: updatedUser.course,
+      strand: updatedUser.strand,
+      yearLevel: updatedUser.yearLevel,
+      section: updatedUser.section,
+      sscPosition: updatedUser.sscPosition,
+      email: updatedUser.email,
+      photoURL: updatedUser.photoURL || null,
+      qrCode: updatedUser.qrCode || null,
+      role: updatedUser.role,
     };
 
-    console.log("✅ Registration successful");
+    console.log("✅ Registration successful for:", updatedUser.email);
     console.log("🔵 ========================================\n");
 
     res.status(200).json({

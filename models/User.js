@@ -41,6 +41,11 @@ UserSchema.index({ email: 1 });
 // ── PASSWORD HASHING BEFORE SAVE ──
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next(); // only hash if password changed
+  
+  // ✅ FIX: Skip hashing if password is already a bcrypt hash
+  // This prevents DOUBLE HASHING when registerRoute manually hashes then calls save()
+  if (this.password && this.password.startsWith("$2b$")) return next();
+  
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
