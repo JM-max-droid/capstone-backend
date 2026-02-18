@@ -47,7 +47,7 @@ const filterStudentsByTab = (students, tab, yearLevel, family, event) => {
 };
 
 // ============================== 
-// ✅ HELPER: Parse time string - FIXED for timeout
+// ✅ FIXED: Parse time string - handles "8:03 AM" format reliably
 // ============================== 
 const parseTime = (timeStr) => {
   try {
@@ -56,39 +56,29 @@ const parseTime = (timeStr) => {
       return null;
     }
 
-    // Clean the time string - remove AM/PM for now
-    const cleanTime = timeStr.replace(/\s*(AM|PM|am|pm)\s*$/i, '').trim();
-    
-    if (!/^\d{1,2}:\d{2}$/.test(cleanTime)) {
+    // ✅ Use regex to match "8:03 AM", "08:03 AM", "8:03 PM", "08:03 PM"
+    const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) {
       console.log("⚠️ Invalid time format:", timeStr);
       return null;
     }
 
-    const parts = cleanTime.split(":");
-    let hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
-    
-    if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes > 59) {
-      console.log("⚠️ Time out of range:", timeStr, { hours, minutes });
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const period = match[3].toUpperCase();
+
+    if (period === "AM") {
+      if (hours === 12) hours = 0;
+    } else {
+      if (hours !== 12) hours += 12;
+    }
+
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      console.log("⚠️ Time out of range:", { timeStr, hours, minutes });
       return null;
     }
 
-    // Handle AM/PM conversion
-    const isPM = /PM/i.test(timeStr);
-    const isAM = /AM/i.test(timeStr);
-    
-    if (isPM && hours !== 12) {
-      hours = hours + 12;
-    } else if (isAM && hours === 12) {
-      hours = 0;
-    }
-    
-    if (hours < 0 || hours > 23) {
-      console.log("⚠️ Converted time out of range:", { original: timeStr, hours, minutes });
-      return null;
-    }
-
-    console.log(`✅ Parsed time: ${timeStr} -> ${hours}:${minutes}`);
+    console.log(`✅ Parsed time: ${timeStr} -> ${hours}:${String(minutes).padStart(2,'0')}`);
     return { hours, minutes };
   } catch (err) {
     console.error("❌ Error parsing time:", timeStr, err);
@@ -97,14 +87,54 @@ const parseTime = (timeStr) => {
 };
 
 // ============================== 
+// ✅ FIXED: Get PHT (UTC+8) current minutes
+// Render servers run UTC — must offset manually
+// ============================== 
+const getPHTMinutes = () => {
+  const now = new Date();
+  const pht = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const hours = pht.getUTCHours();
+  const minutes = pht.getUTCMinutes();
+  console.log(`🇵🇭 PHT: ${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')} | UTC: ${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`);
+  return hours * 60 + minutes;
+};
+
+// ============================== 
+// ✅ FIXED: Get PHT date string (YYYY-MM-DD)
+// ============================== 
+const getPHTDateString = () => {
+  const now = new Date();
+  const pht = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const year = pht.getUTCFullYear();
+  const month = String(pht.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(pht.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// ============================== 
+// ✅ FIXED: Get PHT time string for storing in DB
+// ============================== 
+const getPHTTimeString = () => {
+  const now = new Date();
+  const pht = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  let hours = pht.getUTCHours();
+  const minutes = pht.getUTCMinutes();
+  const seconds = pht.getUTCSeconds();
+  const period = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')} ${period}`;
+};
+
+// ============================== 
 // ✅ FIXED: Get session info with proper timeout windows
 // ============================== 
 const getSessionInfo = (event) => {
   try {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    // ✅ Use PHT time instead of server local time
+    const currentMinutes = getPHTMinutes();
     
-    console.log(`🕐 Current time: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} (${currentMinutes} min)`);
+    console.log(`🕐 Current PHT minutes: ${currentMinutes}`);
 
     const sessions = [];
 
@@ -123,20 +153,10 @@ const getSessionInfo = (event) => {
 
         if (currentMinutes >= startMin && currentMinutes <= endMin) {
           console.log(`✅ MORNING TIME-IN ACTIVE (Present)`);
-          sessions.push({ 
-            session: "morning", 
-            type: "in", 
-            status: "present", 
-            isLate: false,
-          });
+          sessions.push({ session: "morning", type: "in", status: "present", isLate: false });
         } else if (currentMinutes > endMin && currentMinutes <= lateLimit) {
           console.log(`✅ MORNING TIME-IN ACTIVE (Late)`);
-          sessions.push({ 
-            session: "morning", 
-            type: "in", 
-            status: "late", 
-            isLate: true,
-          });
+          sessions.push({ session: "morning", type: "in", status: "late", isLate: true });
         }
       }
     }
@@ -156,12 +176,7 @@ const getSessionInfo = (event) => {
 
         if (currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd) {
           console.log(`✅ MORNING TIME-OUT ACTIVE!`);
-          sessions.push({ 
-            session: "morning", 
-            type: "out",
-            status: "present",
-            isLate: false,
-          });
+          sessions.push({ session: "morning", type: "out", status: "present", isLate: false });
         } else {
           console.log(`❌ Morning timeout not active (current: ${currentMinutes}, window: ${timeoutMin}-${timeoutEnd})`);
         }
@@ -177,28 +192,26 @@ const getSessionInfo = (event) => {
       
       if (start && end) {
         const startMin = start.hours * 60 + start.minutes;
-        const endMin = end.hours * 60 + end.minutes;
+        let endMin = end.hours * 60 + end.minutes;
+
+        // ✅ Handle overnight sessions (e.g. 8:03 PM - 2:08 AM)
+        if (endMin < startMin) endMin += 24 * 60;
+
         const allotted = event.afternoonAttendance.allottedTime || 30;
         const lateLimit = endMin + allotted;
 
+        // Normalize current for overnight comparison
+        let currMin = currentMinutes;
+        if (currMin < startMin && startMin > 12 * 60) currMin += 24 * 60;
+
         console.log(`🔍 Afternoon IN window: ${startMin}-${endMin} min, late until: ${lateLimit} min`);
 
-        if (currentMinutes >= startMin && currentMinutes <= endMin) {
+        if (currMin >= startMin && currMin <= endMin) {
           console.log(`✅ AFTERNOON TIME-IN ACTIVE (Present)`);
-          sessions.push({ 
-            session: "afternoon", 
-            type: "in", 
-            status: "present", 
-            isLate: false,
-          });
-        } else if (currentMinutes > endMin && currentMinutes <= lateLimit) {
+          sessions.push({ session: "afternoon", type: "in", status: "present", isLate: false });
+        } else if (currMin > endMin && currMin <= lateLimit) {
           console.log(`✅ AFTERNOON TIME-IN ACTIVE (Late)`);
-          sessions.push({ 
-            session: "afternoon", 
-            type: "in", 
-            status: "late", 
-            isLate: true,
-          });
+          sessions.push({ session: "afternoon", type: "in", status: "late", isLate: true });
         }
       }
     }
@@ -218,12 +231,7 @@ const getSessionInfo = (event) => {
 
         if (currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd) {
           console.log(`✅ AFTERNOON TIME-OUT ACTIVE!`);
-          sessions.push({ 
-            session: "afternoon", 
-            type: "out",
-            status: "present",
-            isLate: false,
-          });
+          sessions.push({ session: "afternoon", type: "out", status: "present", isLate: false });
         } else {
           console.log(`❌ Afternoon timeout not active (current: ${currentMinutes}, window: ${timeoutMin}-${timeoutEnd})`);
         }
@@ -267,15 +275,11 @@ const createAttendance = async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    const today = new Date().toISOString().split("T")[0];
-    const currentTime = new Date().toLocaleTimeString("en-US", { 
-      hour12: true, 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    // ✅ Use PHT for date and time
+    const today = getPHTDateString();
+    const currentTime = getPHTTimeString();
 
-    console.log(`⏰ Current time: ${currentTime}`);
+    console.log(`⏰ PHT time: ${currentTime}, date: ${today}`);
 
     const sessions = getSessionInfo(event);
     
@@ -480,7 +484,8 @@ const autoMarkAbsent = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    const today = new Date().toISOString().split("T")[0];
+    // ✅ Use PHT date
+    const today = getPHTDateString();
     console.log(`🔴 Auto-marking ${session} absent for event: ${event.title}, Date: ${today}`);
 
     let allStudents = await User.find({ role: "student" })
@@ -731,7 +736,6 @@ const exportAttendance = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Attendance");
 
-    // ✅ Define column headers and structure
     sheet.getRow(1).values = [
       "No.",
       "Student ID", 
@@ -740,28 +744,26 @@ const exportAttendance = async (req, res) => {
       "Year",
       "Section",
       "Date",
-      "Session",      // This will show Morning/Afternoon status
-      "",             // Empty column
-      "Time In",      // Morning/Afternoon time in
-      "",             // Empty column  
-      "Time Out"      // Morning/Afternoon time out
+      "Session",
+      "",
+      "Time In",
+      "",
+      "Time Out"
     ];
 
-    // Set column widths
-    sheet.getColumn(1).width = 6;   // No.
-    sheet.getColumn(2).width = 12;  // Student ID
-    sheet.getColumn(3).width = 25;  // Name
-    sheet.getColumn(4).width = 12;  // Course
-    sheet.getColumn(5).width = 10;  // Year
-    sheet.getColumn(6).width = 10;  // Section
-    sheet.getColumn(7).width = 15;  // Date
-    sheet.getColumn(8).width = 12;  // Session
-    sheet.getColumn(9).width = 2;   // Empty
-    sheet.getColumn(10).width = 15; // Time In
-    sheet.getColumn(11).width = 2;  // Empty
-    sheet.getColumn(12).width = 15; // Time Out
+    sheet.getColumn(1).width = 6;
+    sheet.getColumn(2).width = 12;
+    sheet.getColumn(3).width = 25;
+    sheet.getColumn(4).width = 12;
+    sheet.getColumn(5).width = 10;
+    sheet.getColumn(6).width = 10;
+    sheet.getColumn(7).width = 15;
+    sheet.getColumn(8).width = 12;
+    sheet.getColumn(9).width = 2;
+    sheet.getColumn(10).width = 15;
+    sheet.getColumn(11).width = 2;
+    sheet.getColumn(12).width = 15;
 
-    // Style header row
     const headerRow = sheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Arial' };
     headerRow.fill = {
@@ -772,9 +774,8 @@ const exportAttendance = async (req, res) => {
     headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
     let rowNum = 1;
-    let currentRow = 2; // Start from row 2 (after header)
+    let currentRow = 2;
     
-    // Generate data rows
     filteredStudents.forEach((student) => {
       dates.forEach(date => {
         const formattedDate = new Date(date).toLocaleDateString("en-US", {
@@ -788,40 +789,32 @@ const exportAttendance = async (req, res) => {
                r.date === date
         );
 
-        // ✅ FIRST ROW - Student info + Morning data
         sheet.getRow(currentRow).values = [
-          rowNum,                                          // No.
-          student.idNumber,                                // Student ID
-          `${student.firstName} ${student.lastName}`,      // Name
-          student.course,                                  // Course
-          `${student.yearLevel}${student.yearLevel === "1" ? "st" : student.yearLevel === "2" ? "nd" : student.yearLevel === "3" ? "rd" : "th"} Year`, // Year
-          student.section || "B",                          // Section
-          formattedDate,                                   // Date
-          record?.morningStatus ? record.morningStatus.toUpperCase() : "ABSENT",   // Session (Morning)
-          "",                                              // Empty
-          record?.morningIn || "—",                        // Time In (Morning)
-          "",                                              // Empty
-          record?.morningOut || "—"                        // Time Out (Morning)
+          rowNum,
+          student.idNumber,
+          `${student.firstName} ${student.lastName}`,
+          student.course,
+          `${student.yearLevel}${student.yearLevel === "1" ? "st" : student.yearLevel === "2" ? "nd" : student.yearLevel === "3" ? "rd" : "th"} Year`,
+          student.section || "B",
+          formattedDate,
+          record?.morningStatus ? record.morningStatus.toUpperCase() : "ABSENT",
+          "",
+          record?.morningIn || "—",
+          "",
+          record?.morningOut || "—"
         ];
         
         sheet.getRow(currentRow).alignment = { vertical: 'middle' };
         sheet.getRow(currentRow).font = { name: 'Arial' };
         currentRow++;
 
-        // ✅ SECOND ROW - Empty student info + Afternoon data
         sheet.getRow(currentRow).values = [
-          "",                                              // No. (empty)
-          "",                                              // Student ID (empty)
-          "",                                              // Name (empty)
-          "",                                              // Course (empty)
-          "",                                              // Year (empty)
-          "",                                              // Section (empty)
-          "",                                              // Date (empty)
-          record?.afternoonStatus ? record.afternoonStatus.toUpperCase() : "ABSENT", // Session (Afternoon)
-          "",                                              // Empty
-          record?.afternoonIn || "—",                      // Time In (Afternoon)
-          "",                                              // Empty
-          record?.afternoonOut || "—"                      // Time Out (Afternoon)
+          "", "", "", "", "", "", "",
+          record?.afternoonStatus ? record.afternoonStatus.toUpperCase() : "ABSENT",
+          "",
+          record?.afternoonIn || "—",
+          "",
+          record?.afternoonOut || "—"
         ];
         
         sheet.getRow(currentRow).alignment = { vertical: 'middle' };
