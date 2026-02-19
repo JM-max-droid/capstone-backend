@@ -21,6 +21,7 @@ const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute"); // 🆕 SSC user profile
+const studentUserRoute = require("./routes/student/studentUserRoute"); // 🆕 Student user profile
 
 const ossAttendanceRoute = require("./routes/oss/attendanceRoute");
 const eventRoute = require("./routes/oss/eventRoute");
@@ -85,6 +86,7 @@ app.use("/api/attendance", ossAttendanceRoute);
 
 // 4️⃣ Student / Scanner / SSC user routes
 app.use("/api/scanner", scannerLookupRoute);
+app.use("/api/student/user", studentUserRoute); // 🆕 Student user profile (BEFORE /api/student)
 app.use("/api/student", studentRoute);
 app.use("/api/ssc/user", sscUserRoute);    // 🆕 SSC user profile (BEFORE /api/users)
 app.use("/api/users", ossUserRoute);       // OSS user lookup
@@ -115,7 +117,8 @@ app.get("/", (req, res) => {
       scanner: "GET /api/scanner/:idNumber",
       studentAttendance: "GET /api/student/attendance?userId=xxx",
       sscAttendance: "POST /api/ssc/attendance",
-      sscUser: "GET /api/ssc/user?idNumber=xxx",         // 🆕
+      sscUser: "GET /api/ssc/user?idNumber=xxx",
+      studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
