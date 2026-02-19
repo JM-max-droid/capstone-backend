@@ -12,7 +12,6 @@ function getNextYearLevel(yearLevel, course, strand) {
   const y = yearLevel?.toLowerCase() || "";
 
   if (course && course.trim()) {
-    // College
     if (y.includes("1st")) return "2nd Year";
     if (y.includes("2nd")) return "3rd Year";
     if (y.includes("3rd")) return "4th Year";
@@ -20,8 +19,7 @@ function getNextYearLevel(yearLevel, course, strand) {
   }
 
   if (strand && strand.trim()) {
-    // Senior High School
-    if (y.includes("11")) return "12";
+    if (y.includes("11")) return "Grade 12";
     if (y.includes("12")) return null; // Final year
   }
 
@@ -35,28 +33,59 @@ function isFinalYear(yearLevel, course, strand) {
   return false;
 }
 
-// ─── MAIN YEAR-END PROCESS ───────────────────────────────────────────────────
+// ─── GET STUDENTS FOR REVIEW ─────────────────────────────────────────────────
+// Fetches ALL students (student + ssc roles) regardless of academicYear value.
+// This way, even existing students without academicYear set will appear.
 
-/**
- * Runs full automated year-end process:
- * - Promotes active non-final students
- * - Graduates active final-year students
- * - Creates next academic year doc
- * - Saves summary stats
- */
+exports.getStudentsForReview = async () => {
+  const currentYearDoc = await AcademicYear.findOne({ isCurrent: true });
+  const currentYear = currentYearDoc?.year || "";
+
+  // Fetch ALL active students — with or without academicYear
+  // so existing students in the DB will always show up
+  const allActive = await User.find({
+    role: { $in: ["student", "ssc"] },
+    // Include students that are:
+    // 1. explicitly "active"
+    // 2. OR have no status yet (existing students before migration)
+    $or: [
+      { status: "active" },
+      { status: { $exists: false } },
+      { status: "" },
+    ],
+  })
+    .select("-password -verificationToken -verificationTokenExpiry -__v")
+    .lean();
+
+  const finalYear = allActive.filter((s) =>
+    isFinalYear(s.yearLevel, s.course, s.strand)
+  );
+  const nonFinal = allActive.filter(
+    (s) => !isFinalYear(s.yearLevel, s.course, s.strand)
+  );
+
+  return { finalYear, nonFinal, currentYear };
+};
+
+// ─── MAIN YEAR-END PROCESS ───────────────────────────────────────────────────
+// Runs full automated year-end:
+// - Promotes active non-final students
+// - Graduates active final-year students
+// - Creates next academic year doc
+// - Saves summary stats
+
 exports.processYearEnd = async (processedBy = "system") => {
   const currentYearDoc = await AcademicYear.findOne({ isCurrent: true });
-  if (!currentYearDoc) throw new Error("No active academic year found");
+  if (!currentYearDoc) throw new Error("No active academic year found. Create one first in Academic Years tab.");
 
   const currentYear = currentYearDoc.year;
   const nextYear = getNextAcademicYear(currentYear);
 
-  // Prevent running twice
   if (currentYearDoc.isClosed) {
     throw new Error(`Academic year ${currentYear} is already closed`);
   }
 
-  // Check if next year already exists
+  // Create or update next year doc
   let newYearDoc = await AcademicYear.findOne({ year: nextYear });
   if (!newYearDoc) {
     newYearDoc = await AcademicYear.create({ year: nextYear, isCurrent: true });
@@ -70,18 +99,17 @@ exports.processYearEnd = async (processedBy = "system") => {
   currentYearDoc.isClosed = true;
   await currentYearDoc.save();
 
-  // Only process students that are "active" and belong to current academic year
+  // Fetch ALL active students (including those without academicYear)
   const students = await User.find({
     role: { $in: ["student", "ssc"] },
-    academicYear: currentYear,
-    status: "active",
+    $or: [
+      { status: "active" },
+      { status: { $exists: false } },
+      { status: "" },
+    ],
   });
 
-  const results = {
-    promoted:  0,
-    graduated: 0,
-    skipped:   0,
-  };
+  const results = { promoted: 0, graduated: 0, skipped: 0 };
 
   for (const student of students) {
     const historyEntry = {
@@ -92,7 +120,6 @@ exports.processYearEnd = async (processedBy = "system") => {
     };
 
     if (isFinalYear(student.yearLevel, student.course, student.strand)) {
-      // Graduate
       historyEntry.toYear      = currentYear;
       historyEntry.toYearLevel = student.yearLevel;
       historyEntry.action      = "graduated";
@@ -100,6 +127,8 @@ exports.processYearEnd = async (processedBy = "system") => {
       student.status         = "graduated";
       student.role           = "graduate";
       student.graduationYear = new Date().getFullYear();
+      student.academicYear   = currentYear;
+      results.graduated++;
     } else {
       const nextLevel = getNextYearLevel(student.yearLevel, student.course, student.strand);
       if (!nextLevel) {
@@ -117,13 +146,11 @@ exports.processYearEnd = async (processedBy = "system") => {
       results.promoted++;
     }
 
-    if (historyEntry.action === "graduated") results.graduated++;
-
     student.promotionHistory.push(historyEntry);
     await student.save();
   }
 
-  // Save summary to academic year doc
+  // Save summary
   newYearDoc.summary = {
     totalPromoted:  results.promoted,
     totalGraduated: results.graduated,
@@ -132,23 +159,19 @@ exports.processYearEnd = async (processedBy = "system") => {
   await newYearDoc.save();
 
   return {
-    message:           "Year-end process completed successfully",
-    previousYear:      currentYear,
-    nextAcademicYear:  nextYear,
+    message:          "Year-end process completed successfully",
+    previousYear:     currentYear,
+    nextAcademicYear: nextYear,
     results,
   };
 };
 
 // ─── MANUAL PER-STUDENT ACTION ───────────────────────────────────────────────
 
-/**
- * action: "promote" | "graduate" | "fail" | "drop" | "irregular" | "on_leave"
- * studentIds: array of MongoDB _id strings
- */
 exports.applyManualAction = async (studentIds, action, remarks = "", processedBy = "system") => {
   const currentYearDoc = await AcademicYear.findOne({ isCurrent: true });
   const currentYear = currentYearDoc?.year || "";
-  const nextYear = currentYear ? getNextAcademicYear(currentYear) : "";
+  const nextYear    = currentYear ? getNextAcademicYear(currentYear) : "";
 
   const results = [];
 
@@ -188,6 +211,7 @@ exports.applyManualAction = async (studentIds, action, remarks = "", processedBy
       student.status           = "graduated";
       student.role             = "graduate";
       student.graduationYear   = new Date().getFullYear();
+      student.academicYear     = currentYear;
     }
 
     if (action === "fail") {
@@ -195,6 +219,7 @@ exports.applyManualAction = async (studentIds, action, remarks = "", processedBy
       historyEntry.toYearLevel = student.yearLevel;
       historyEntry.action      = "failed";
       student.status           = "failed";
+      student.academicYear     = currentYear;
     }
 
     if (action === "drop") {
@@ -202,11 +227,12 @@ exports.applyManualAction = async (studentIds, action, remarks = "", processedBy
       historyEntry.toYearLevel = student.yearLevel;
       historyEntry.action      = "dropped";
       student.status           = "dropped";
+      student.academicYear     = currentYear;
     }
 
     if (action === "irregular") {
       historyEntry.toYear      = nextYear;
-      historyEntry.toYearLevel = student.yearLevel; // stays same year level
+      historyEntry.toYearLevel = student.yearLevel;
       historyEntry.action      = "irregular";
       student.status           = "irregular";
       student.academicYear     = nextYear;
@@ -217,39 +243,17 @@ exports.applyManualAction = async (studentIds, action, remarks = "", processedBy
       historyEntry.toYearLevel = student.yearLevel;
       historyEntry.action      = "on_leave";
       student.status           = "on_leave";
+      student.academicYear     = currentYear;
     }
 
     student.yearEndRemarks = remarks || student.yearEndRemarks;
     student.promotionHistory.push(historyEntry);
     await student.save();
+
     results.push({ id, success: true, action, newStatus: student.status });
   }
 
   return results;
-};
-
-// ─── GET STUDENTS FOR PROMOTION REVIEW ───────────────────────────────────────
-
-exports.getStudentsForReview = async () => {
-  const currentYearDoc = await AcademicYear.findOne({ isCurrent: true });
-  const currentYear = currentYearDoc?.year || "";
-
-  const allActive = await User.find({
-    role: { $in: ["student", "ssc"] },
-    academicYear: currentYear,
-    status: "active",
-  })
-    .select("-password -verificationToken -verificationTokenExpiry -__v")
-    .lean();
-
-  const finalYear = allActive.filter((s) =>
-    isFinalYear(s.yearLevel, s.course, s.strand)
-  );
-  const nonFinal = allActive.filter(
-    (s) => !isFinalYear(s.yearLevel, s.course, s.strand)
-  );
-
-  return { finalYear, nonFinal, currentYear };
 };
 
 // ─── GET ALL ACADEMIC YEARS ───────────────────────────────────────────────────
@@ -284,6 +288,7 @@ exports.migrateExistingStudents = async (defaultAcademicYear) => {
         { academicYear: { $exists: false } },
         { academicYear: "" },
         { status: { $exists: false } },
+        { status: "" },
       ],
     },
     {
