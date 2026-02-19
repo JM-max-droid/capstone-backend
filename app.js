@@ -21,7 +21,7 @@ const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute"); // 🆕 SSC user profile
-const studentUserRoute = require("./routes/student/studentUserRoute"); // 🆕 Student user profile
+const studentUserRoute = require("./routes/student/userRoute"); // 🆕 Student user profile
 
 const ossAttendanceRoute = require("./routes/oss/attendanceRoute");
 const eventRoute = require("./routes/oss/eventRoute");
