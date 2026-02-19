@@ -1,5 +1,5 @@
 const User = require("../models/User");
-const AcademicYear = require("../models/AcademicYear");
+const AcademicYear = require("../models/academicYear");
 
 // ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 
