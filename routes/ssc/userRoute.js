@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   getSscUserById,
   updateSscPassword,
-} = require("../../controllers/ssc/sscUserProfileController");
+} = require("../../controllers/ssc/userProfileController");
 
 // GET  /api/ssc/user?idNumber=xxx  → fetch SSC user profile
 router.get("/", getSscUserById);
