@@ -1,7 +1,7 @@
 // routes/student/studentRoute.js - FIXED WITH REMOVE SSC
 const express = require("express");
 const router = express.Router();
-const controller = require("../../controllers/student/studentController");
+const controller = require("../../controllers/oss/studentController");
 
 // GET all students/ssc with filters
 router.get("/", controller.getStudents);

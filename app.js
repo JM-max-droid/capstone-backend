@@ -16,12 +16,13 @@ const realtimePhotoRoute = require("./routes/registration/realtimephotoRoute");
 const qrcodeRoute = require("./routes/registration/qrcodeRoute");
 
 const userRoute = require("./routes/student/userRoute");
-const studentRoute = require("./routes/student/studentRoute");
+const studentRoute = require("./routes/oss/studentRoute");
 const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute"); // 🆕 SSC user profile
 const studentUserRoute = require("./routes/student/userRoute"); // 🆕 Student user profile
+const sscStudentsRoute = require("./routes/ssc/sscStudentsRoute"); // 🆕 SSC student management
 
 const ossAttendanceRoute = require("./routes/oss/attendanceRoute");
 const eventRoute = require("./routes/oss/eventRoute");
@@ -88,8 +89,9 @@ app.use("/api/attendance", ossAttendanceRoute);
 app.use("/api/scanner", scannerLookupRoute);
 app.use("/api/student/user", studentUserRoute); // 🆕 Student user profile (BEFORE /api/student)
 app.use("/api/student", studentRoute);
-app.use("/api/ssc/user", sscUserRoute);    // 🆕 SSC user profile (BEFORE /api/users)
-app.use("/api/users", ossUserRoute);       // OSS user lookup
+app.use("/api/ssc/user", sscUserRoute);         // SSC user profile (BEFORE /api/ssc/students)
+app.use("/api/ssc/students", sscStudentsRoute); // 🆕 SSC student management (BEFORE /api/users)
+app.use("/api/users", ossUserRoute);            // OSS user lookup
 
 // 🆕 5️⃣ SUPERADMIN routes
 app.use("/api/superadmin/users", superadminUserRoute);
@@ -118,6 +120,7 @@ app.get("/", (req, res) => {
       studentAttendance: "GET /api/student/attendance?userId=xxx",
       sscAttendance: "POST /api/ssc/attendance",
       sscUser: "GET /api/ssc/user?idNumber=xxx",
+      sscStudents: "GET /api/ssc/students",
       studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
