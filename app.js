@@ -17,9 +17,10 @@ const qrcodeRoute = require("./routes/registration/qrcodeRoute");
 
 const userRoute = require("./routes/student/userRoute");
 const studentRoute = require("./routes/student/studentRoute");
-const studentAttendanceRoute = require("./routes/student/attendanceRoute"); // 🆕 ADDED!
+const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
+const sscUserRoute = require("./routes/ssc/userRoute"); // 🆕 SSC user profile
 
 const ossAttendanceRoute = require("./routes/oss/attendanceRoute");
 const eventRoute = require("./routes/oss/eventRoute");
@@ -78,17 +79,18 @@ app.use("/api/register", registerRoute);
 app.use("/api/oss/notifications", notificationRoute);
 
 // 3️⃣ Attendance routes (MOST SPECIFIC FIRST!)
-app.use("/api/student/attendance", studentAttendanceRoute); // 🆕 Student attendance (NEW!)
-app.use("/api/ssc/attendance", sscAttendanceRoute);         // SSC attendance
-app.use("/api/attendance", ossAttendanceRoute);             // OSS attendance (fallback)
+app.use("/api/student/attendance", studentAttendanceRoute);
+app.use("/api/ssc/attendance", sscAttendanceRoute);
+app.use("/api/attendance", ossAttendanceRoute);
 
-// 4️⃣ Student / Scanner routes
-app.use("/api/scanner", scannerLookupRoute); // ✅ matches SCANNER_LOOKUP_URL in config.ts
-app.use("/api/student", studentRoute);       // Student CRUD operations
-app.use("/api/users", ossUserRoute);         // OSS user lookup
+// 4️⃣ Student / Scanner / SSC user routes
+app.use("/api/scanner", scannerLookupRoute);
+app.use("/api/student", studentRoute);
+app.use("/api/ssc/user", sscUserRoute);    // 🆕 SSC user profile (BEFORE /api/users)
+app.use("/api/users", ossUserRoute);       // OSS user lookup
 
 // 🆕 5️⃣ SUPERADMIN routes
-app.use("/api/superadmin/users", superadminUserRoute); // ✅ SuperAdmin user management
+app.use("/api/superadmin/users", superadminUserRoute);
 
 // 6️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
@@ -111,8 +113,9 @@ app.get("/", (req, res) => {
       resendVerification: "POST /api/register/resend-verification",
       login: "POST /api/login",
       scanner: "GET /api/scanner/:idNumber",
-      studentAttendance: "GET /api/student/attendance?userId=xxx", // 🆕 NEW!
+      studentAttendance: "GET /api/student/attendance?userId=xxx",
       sscAttendance: "POST /api/ssc/attendance",
+      sscUser: "GET /api/ssc/user?idNumber=xxx",         // 🆕
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
