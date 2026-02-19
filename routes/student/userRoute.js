@@ -14,7 +14,7 @@ const {
 // PUT  /api/student-user/update-password  → change password
 router.put("/update-password", updateStudentPassword);
 
-// GET  /api/student-user?idNumber=xxx     → fetch student profile
+// GET  /api/student-user?idNumber=xxx  (or ?email=xxx fallback)  → fetch student profile
 router.get("/", getStudentUserById);
 
 // ── Keep all existing routes below ──────────────────────────────
@@ -30,16 +30,18 @@ router.get("/qrcode", async (req, res) => {
     let user;
     if (idNumber) {
       user = await User.findOne({ idNumber: Number(idNumber) }).lean();
+      // Fallback: try String
+      if (!user) user = await User.findOne({ idNumber: String(idNumber) }).lean();
     } else if (email) {
-      user = await User.findOne({ email }).lean();
+      user = await User.findOne({ email: email.toLowerCase().trim() }).lean();
     }
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (!user.qrCode) {
-      const qrData     = JSON.stringify({
-        name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-        email: user.email,
+      const qrData      = JSON.stringify({
+        name:     `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        email:    user.email,
         idNumber: user.idNumber || "N/A",
       });
       const qrCodeImage = await QRCode.toDataURL(qrData);
@@ -50,10 +52,17 @@ router.get("/qrcode", async (req, res) => {
     res.status(200).json({
       qrCode: user.qrCode,
       user: {
-        idNumber: user.idNumber, role: user.role,
-        firstName: user.firstName, middleName: user.middleName, lastName: user.lastName,
-        age: user.age, course: user.course, yearLevel: user.yearLevel,
-        section: user.section, photoURL: user.photoURL, email: user.email,
+        idNumber:   user.idNumber,
+        role:       user.role,
+        firstName:  user.firstName,
+        middleName: user.middleName,
+        lastName:   user.lastName,
+        age:        user.age,
+        course:     user.course,
+        yearLevel:  user.yearLevel,
+        section:    user.section,
+        photoURL:   user.photoURL,
+        email:      user.email,
       },
     });
   } catch (err) {
@@ -68,7 +77,12 @@ router.put("/update", async (req, res) => {
     const { email } = req.query;
     if (!email) return res.status(400).json({ error: "Email is required" });
 
-    const user = await User.findOneAndUpdate({ email }, req.body, { new: true }).lean();
+    const user = await User.findOneAndUpdate(
+      { email: email.toLowerCase().trim() },
+      req.body,
+      { new: true }
+    ).lean();
+
     if (!user) return res.status(404).json({ error: "User not found" });
 
     res.status(200).json({ message: "✅ User updated", user });
@@ -88,9 +102,10 @@ router.get("/:idNumber", async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (!user.qrCode) {
-      const qrData     = JSON.stringify({
-        name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
-        email: user.email, idNumber: user.idNumber || "N/A",
+      const qrData      = JSON.stringify({
+        name:     `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        email:    user.email,
+        idNumber: user.idNumber || "N/A",
       });
       const qrCodeImage = await QRCode.toDataURL(qrData);
       await User.updateOne({ _id: user._id }, { qrCode: qrCodeImage });

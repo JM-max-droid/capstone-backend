@@ -1,25 +1,41 @@
 const User = require("../../models/User");
 const bcrypt = require("bcryptjs");
 
-// ================= GET STUDENT USER BY ID NUMBER =================
+// ================= GET STUDENT USER BY ID NUMBER OR EMAIL =================
 const getStudentUserById = async (req, res) => {
   try {
-    const { idNumber } = req.query;
+    const { idNumber, email } = req.query;
 
-    console.log("📌 getStudentUserById called — idNumber:", idNumber);
+    console.log("📌 getStudentUserById called — idNumber:", idNumber, "| email:", email);
 
-    if (!idNumber) {
-      return res.status(400).json({ error: "ID number is required" });
+    // ✅ Must have at least one identifier
+    if (!idNumber && !email) {
+      return res.status(400).json({ error: "ID number or email is required" });
     }
 
-    let user = await User.findOne({
-      idNumber: Number(idNumber),
-      role: "student",
-    }).select("-password -__v").lean();
+    let user = null;
 
-    if (!user) {
+    // ─── Try by idNumber first ──────────────────────────────────────────────
+    if (idNumber) {
+      // Try as Number first (most common case)
       user = await User.findOne({
-        idNumber: String(idNumber),
+        idNumber: Number(idNumber),
+        role: "student",
+      }).select("-password -__v").lean();
+
+      // Fallback: try as String if not found
+      if (!user) {
+        user = await User.findOne({
+          idNumber: String(idNumber),
+          role: "student",
+        }).select("-password -__v").lean();
+      }
+    }
+
+    // ─── Fallback: try by email ─────────────────────────────────────────────
+    if (!user && email) {
+      user = await User.findOne({
+        email: email.toLowerCase().trim(),
         role: "student",
       }).select("-password -__v").lean();
     }
@@ -43,6 +59,7 @@ const updateStudentPassword = async (req, res) => {
 
     console.log("📌 updateStudentPassword called — idNumber:", idNumber);
 
+    // ─── Validate required fields ───────────────────────────────────────────
     if (!idNumber || !currentPassword || !newPassword) {
       return res.status(400).json({ error: "All fields are required" });
     }
@@ -50,18 +67,28 @@ const updateStudentPassword = async (req, res) => {
       return res.status(400).json({ error: "New password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({ idNumber: Number(idNumber), role: "student" });
+    // ─── Find the student ───────────────────────────────────────────────────
+    let user = await User.findOne({ idNumber: Number(idNumber), role: "student" });
+
+    // Fallback: try as String
+    if (!user) {
+      user = await User.findOne({ idNumber: String(idNumber), role: "student" });
+    }
+
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // ─── Verify current password ────────────────────────────────────────────
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
+    // ─── Hash and save new password ─────────────────────────────────────────
     const salt           = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
+
     await User.findByIdAndUpdate(user._id, { $set: { password: hashedPassword } });
 
     console.log("✅ Student password updated for idNumber:", idNumber);
