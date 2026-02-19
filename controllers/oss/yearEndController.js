@@ -1,4 +1,4 @@
-const yearEndService = require("../../services/yearEnd.service");
+const yearEndService = require("../../services/yearEndService");
 
 // ─── RUN FULL YEAR-END PROCESS ───────────────────────────────────────────────
 exports.runYearEnd = async (req, res) => {
