@@ -8,28 +8,40 @@ const {
   updateProfilePicture,
 } = require("../../controllers/oss/userProfileController");
 
-// ================= GET USER BY EMAIL (for OSS profile) =================
-router.get("/", getUserByEmail);
+// ================================================================
+// ⚠️  ORDER MATTERS — specific routes MUST come before /:idNumber
+// ================================================================
 
-// ================= UPDATE PROFILE INFO (name + email) =================
+// ── Profile routes (OSS) ─────────────────────────────────────────
+// GET  /api/users?email=xxx        → fetch OSS user by email
+router.get("/profile", getUserByEmail);
+
+// PUT  /api/users/update-info      → update name + email
 router.put("/update-info", updateProfileInfo);
 
-// ================= UPDATE PASSWORD =================
+// PUT  /api/users/update-password  → change password
 router.put("/update-password", updatePassword);
 
-// ================= UPDATE PROFILE PICTURE =================
+// PUT  /api/users/update-picture   → change profile photo
 router.put("/update-picture", updateProfilePicture);
 
-// ================= GET USER BY ID NUMBER (for QR scan) =================
+// ── Fallback GET by email (query param) ──────────────────────────
+// This handles GET /api/users?email=xxx
+router.get("/", getUserByEmail);
+
+// ── QR scan — MUST be last so it doesn't swallow the routes above ─
+// GET  /api/users/:idNumber        → fetch student by ID (QR)
 router.get("/:idNumber", async (req, res) => {
   try {
     let { idNumber } = req.params;
 
-    console.log("🔍 GET /api/users/:idNumber - Looking up student:", idNumber);
-
-    if (!idNumber) {
-      return res.status(400).json({ error: "ID number required" });
+    // Guard: reject if it looks like one of our named routes
+    const reserved = ["profile", "update-info", "update-password", "update-picture"];
+    if (reserved.includes(idNumber)) {
+      return res.status(405).json({ error: "Method not allowed on this endpoint" });
     }
+
+    console.log("🔍 GET /api/users/:idNumber - Looking up student:", idNumber);
 
     idNumber = String(idNumber).trim();
     let user;
