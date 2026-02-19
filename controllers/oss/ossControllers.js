@@ -1,6 +1,6 @@
 // backend/controllers/ossController.js
-const Attendance = require("../models/Attendance");
-const User = require("../models/User");
+const Attendance = require("../../models/Attendance");
+const User = require("../../models/User");
 
 const getAllAttendance = async (req, res) => {
   try {

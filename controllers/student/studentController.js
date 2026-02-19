@@ -1,6 +1,6 @@
 // controllers/studentController.js - FIXED VERSION
-const Student = require("../models/Student");
-const User = require("../models/User");
+const Student = require("../../models/Student");
+const User = require("../../models/User");
 const bcrypt = require("bcryptjs");
 
 /**

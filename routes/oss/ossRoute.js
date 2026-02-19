@@ -1,7 +1,7 @@
 // backend/routes/ossRoutes.js
 const express = require("express");
 const router = express.Router();
-const ossController = require("../../controllers/ossControllers");
+const ossController = require("../../controllers/oss/ossControllers");
 
 router.get("/findStudent", ossController.findStudent);
 router.get("/", ossController.getAllAttendance);
