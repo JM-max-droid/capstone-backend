@@ -20,15 +20,18 @@ const studentRoute = require("./routes/oss/studentRoute");
 const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
-const sscUserRoute = require("./routes/ssc/userRoute"); // 🆕 SSC user profile
-const studentUserRoute = require("./routes/student/userRoute"); // 🆕 Student user profile
-const sscStudentsRoute = require("./routes/ssc/sscStudentsRoute"); // 🆕 SSC student management
+const sscUserRoute = require("./routes/ssc/userRoute");
+const studentUserRoute = require("./routes/student/userRoute");
+const sscStudentsRoute = require("./routes/ssc/sscStudentsRoute");
 
 const ossAttendanceRoute = require("./routes/oss/attendanceRoute");
 const eventRoute = require("./routes/oss/eventRoute");
 const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
+
+// 🆕 YEAR-END ROUTE
+const yearEndRoute = require("./routes/oss/yearEndRoute");
 
 // 🆕 SUPERADMIN ROUTE
 const superadminUserRoute = require("./routes/superadmin/userRoute");
@@ -87,22 +90,25 @@ app.use("/api/attendance", ossAttendanceRoute);
 
 // 4️⃣ Student / Scanner / SSC user routes
 app.use("/api/scanner", scannerLookupRoute);
-app.use("/api/student/user", studentUserRoute); // 🆕 Student user profile (BEFORE /api/student)
+app.use("/api/student/user", studentUserRoute);
 app.use("/api/student", studentRoute);
-app.use("/api/ssc/user", sscUserRoute);         // SSC user profile (BEFORE /api/ssc/students)
-app.use("/api/ssc/students", sscStudentsRoute); // 🆕 SSC student management (BEFORE /api/users)
-app.use("/api/users", ossUserRoute);            // OSS user lookup
+app.use("/api/ssc/user", sscUserRoute);
+app.use("/api/ssc/students", sscStudentsRoute);
+app.use("/api/users", ossUserRoute);
 
-// 🆕 5️⃣ SUPERADMIN routes
+// 🆕 5️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
+app.use("/api/year-end", yearEndRoute);
+
+// 6️⃣ SUPERADMIN routes
 app.use("/api/superadmin/users", superadminUserRoute);
 
-// 6️⃣ Other specific routes
+// 7️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
 app.use("/api/login", loginRoute);
 app.use("/api/user", userRoute);
 app.use("/api/events", eventRoute);
 
-// 7️⃣ General OSS routes (last among API routes)
+// 8️⃣ General OSS routes (last among API routes)
 app.use("/api/oss", ossRoute);
 
 // ===============================
@@ -125,6 +131,12 @@ app.get("/", (req, res) => {
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
+      // 🆕 Year-End endpoints
+      yearEndReview: "GET /api/year-end/review",
+      yearEndRun: "POST /api/year-end/run",
+      yearEndManualAction: "POST /api/year-end/manual-action",
+      yearEndAcademicYears: "GET /api/year-end/academic-years",
+      yearEndMigrate: "POST /api/year-end/migrate",
     }
   });
 });
