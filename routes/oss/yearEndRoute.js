@@ -1,6 +1,6 @@
 const express = require("express");
 const router  = express.Router();
-const ctrl    = require("../../controllers/yearEnd.controller");
+const ctrl    = require("../../controllers/oss/yearEndController");
 
 // ─── ACADEMIC YEAR MANAGEMENT ────────────────────────────────────────────────
 router.get("/academic-years",      ctrl.getAcademicYears);
