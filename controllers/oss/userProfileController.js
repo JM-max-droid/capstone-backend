@@ -1,28 +1,42 @@
 const User = require("../../models/User");
 const bcrypt = require("bcryptjs");
 
-// ================= GET OSS USER BY ID NUMBER =================
-// Using idNumber as identifier since it's unique
+// ================= GET OSS USER BY ID NUMBER OR EMAIL =================
 const getUserById = async (req, res) => {
   try {
-    const { idNumber } = req.query;
+    const { idNumber, email } = req.query;
 
-    console.log("📌 getUserById called — idNumber:", idNumber);
+    console.log("📌 getUserById called — idNumber:", idNumber, "| email:", email);
 
-    if (!idNumber) {
-      return res.status(400).json({ error: "ID number is required" });
+    // ✅ Accept either idNumber or email
+    if (!idNumber && !email) {
+      return res.status(400).json({ error: "ID number or email is required" });
     }
 
-    // Try as number first, then string
-    let user = await User.findOne({
-      idNumber: Number(idNumber),
-      role: "oss"
-    }).select("-password -__v").lean();
+    let user = null;
 
-    if (!user) {
+    // ─── Try idNumber first ─────────────────────────────────────────────────
+    if (idNumber) {
+      // Try as Number
       user = await User.findOne({
-        idNumber: String(idNumber),
-        role: "oss"
+        idNumber: Number(idNumber),
+        role: "oss",
+      }).select("-password -__v").lean();
+
+      // Fallback: try as String
+      if (!user) {
+        user = await User.findOne({
+          idNumber: String(idNumber),
+          role: "oss",
+        }).select("-password -__v").lean();
+      }
+    }
+
+    // ─── Fallback: try by email ─────────────────────────────────────────────
+    if (!user && email) {
+      user = await User.findOne({
+        email: email.toLowerCase().trim(),
+        role: "oss",
       }).select("-password -__v").lean();
     }
 
@@ -39,7 +53,6 @@ const getUserById = async (req, res) => {
 };
 
 // ================= UPDATE PROFILE INFO =================
-// Uses idNumber as the stable identifier (email can change)
 const updateProfileInfo = async (req, res) => {
   try {
     const { idNumber, firstName, middleName, lastName, newEmail } = req.body;
@@ -50,7 +63,10 @@ const updateProfileInfo = async (req, res) => {
       return res.status(400).json({ error: "ID number is required" });
     }
 
-    const existingUser = await User.findOne({ idNumber: Number(idNumber) });
+    let existingUser = await User.findOne({ idNumber: Number(idNumber) });
+    if (!existingUser) {
+      existingUser = await User.findOne({ idNumber: String(idNumber) });
+    }
     if (!existingUser) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -59,7 +75,7 @@ const updateProfileInfo = async (req, res) => {
     if (newEmail && newEmail.toLowerCase() !== existingUser.email?.toLowerCase()) {
       const emailTaken = await User.findOne({
         email: newEmail.toLowerCase().trim(),
-        _id: { $ne: existingUser._id }
+        _id: { $ne: existingUser._id },
       });
       if (emailTaken) {
         return res.status(409).json({ error: "Email is already in use by another account" });
@@ -100,7 +116,10 @@ const updatePassword = async (req, res) => {
       return res.status(400).json({ error: "New password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({ idNumber: Number(idNumber) });
+    let user = await User.findOne({ idNumber: Number(idNumber) });
+    if (!user) {
+      user = await User.findOne({ idNumber: String(idNumber) });
+    }
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -133,11 +152,20 @@ const updateProfilePicture = async (req, res) => {
       return res.status(400).json({ error: "ID number and photoURL are required" });
     }
 
-    const updatedUser = await User.findOneAndUpdate(
+    let updatedUser = await User.findOneAndUpdate(
       { idNumber: Number(idNumber) },
       { $set: { photoURL } },
       { new: true }
     ).select("-password -__v").lean();
+
+    // Fallback: try String
+    if (!updatedUser) {
+      updatedUser = await User.findOneAndUpdate(
+        { idNumber: String(idNumber) },
+        { $set: { photoURL } },
+        { new: true }
+      ).select("-password -__v").lean();
+    }
 
     if (!updatedUser) {
       return res.status(404).json({ error: "User not found" });

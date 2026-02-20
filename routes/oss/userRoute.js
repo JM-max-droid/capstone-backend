@@ -21,10 +21,10 @@ router.put("/update-password", updatePassword);
 // PUT  /api/users/update-picture   → change profile photo
 router.put("/update-picture", updateProfilePicture);
 
-// GET  /api/users?idNumber=xxx     → fetch OSS user by idNumber
+// GET  /api/users?idNumber=xxx  (or ?email=xxx fallback) → fetch OSS user
 router.get("/", getUserById);
 
-// GET  /api/users/:idNumber        → QR scan for students (MUST be last)
+// GET  /api/users/:idNumber  → QR scan for students (MUST be last)
 router.get("/:idNumber", async (req, res) => {
   try {
     let { idNumber } = req.params;
