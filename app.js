@@ -30,26 +30,22 @@ const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
 
-// SSC NOTIFICATION ROUTE (view-only)
+// 🆕 SSC NOTIFICATION ROUTE (view-only)
 const sscNotificationRoute = require("./routes/ssc/notificationRoute");
 
-// YEAR-END ROUTE
+// 🆕 YEAR-END ROUTE
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
-// SUPERADMIN ROUTES
+// 🆕 SUPERADMIN ROUTES
 const superadminUserRoute        = require("./routes/superadmin/userRoute");
 const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute");
-
-// ===============================
-// ✅ Import Models (para sa debug)
-// ===============================
-const Notification = require("./models/Notification");
 
 // ===============================
 // ✅ App Setup
 // ===============================
 const app = express();
 
+// ✅ FIX: Trust proxy for Render deployment
 app.set('trust proxy', 1);
 
 app.use(cors({
@@ -78,22 +74,28 @@ const transporter = nodemailer.createTransport({
 });
 
 // ===============================
-// ✅ Routes
+// ✅ Routes - Organized & Correct
 // ===============================
 
+// 1️⃣ Registration sub-routes (most specific first)
 app.use("/api/register/qrcode", qrcodeRoute);
 app.use("/api/register/photo", realtimePhotoRoute);
 app.use("/api/register/verify", verificationRoute);
 app.use("/api/register/resend-verification", resendVerificationRoute);
 app.use("/api/register", registerRoute);
 
+// 2️⃣ OSS sub-routes before main /api/oss
 app.use("/api/oss/notifications", notificationRoute);
+
+// 3️⃣ SSC NOTIFICATION ROUTE (view-only) — before /api/ssc generic routes
 app.use("/api/ssc/notifications", sscNotificationRoute);
 
+// 4️⃣ Attendance routes (MOST SPECIFIC FIRST!)
 app.use("/api/student/attendance", studentAttendanceRoute);
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
+// 5️⃣ Student / Scanner / SSC user routes
 app.use("/api/scanner", scannerLookupRoute);
 app.use("/api/student/user", studentUserRoute);
 app.use("/api/student", studentRoute);
@@ -101,30 +103,67 @@ app.use("/api/ssc/user", sscUserRoute);
 app.use("/api/ssc/students", sscStudentsRoute);
 app.use("/api/users", ossUserRoute);
 
+// 6️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
 app.use("/api/year-end", yearEndRoute);
 
+// 7️⃣ SUPERADMIN routes
 app.use("/api/superadmin/users", superadminUserProfileRoute);
 app.use("/api/superadmin", superadminUserRoute);
 
+// 8️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
 app.use("/api/login", loginRoute);
 app.use("/api/user", userRoute);
 app.use("/api/events", eventRoute);
+
+// 9️⃣ General OSS routes (last among API routes)
 app.use("/api/oss", ossRoute);
 
 // ===============================
 // ✅ Health check
 // ===============================
 app.get("/", (req, res) => {
-  res.json({ message: "🚀 AttendSure Backend API is running!" });
+  res.json({
+    message: "🚀 AttendSure Backend API is running!",
+    endpoints: {
+      register: "POST /api/register",
+      verify: "GET /api/register/verify?token=xxx",
+      resendVerification: "POST /api/register/resend-verification",
+      login: "POST /api/login",
+      scanner: "GET /api/scanner/:idNumber",
+      studentAttendance: "GET /api/student/attendance?userId=xxx",
+      sscAttendance: "POST /api/ssc/attendance",
+      sscUser: "GET /api/ssc/user?idNumber=xxx",
+      sscStudents: "GET /api/ssc/students",
+      studentUser: "GET /api/student/user?idNumber=xxx",
+      ossAttendance: "POST /api/attendance",
+      events: "GET /api/events",
+      // SSC Notifications (view-only)
+      sscNotifications: "GET /api/ssc/notifications/all?userId=&role=ssc",
+      sscNotifUnread: "GET /api/ssc/notifications/unread/:userId",
+      sscNotifRead: "POST /api/ssc/notifications/:id/read",
+      // Superadmin
+      superadminUsers: "GET /api/superadmin/users",
+      superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
+      superadminUpdatePassword: "PUT /api/superadmin/users/update-password",
+      superadminUpdatePicture: "PUT /api/superadmin/users/update-picture",
+      // Year-End
+      yearEndReview: "GET /api/year-end/review",
+      yearEndRun: "POST /api/year-end/run",
+      yearEndManualAction: "POST /api/year-end/manual-action",
+      yearEndAcademicYears: "GET /api/year-end/academic-years",
+      yearEndMigrate: "POST /api/year-end/migrate",
+    }
+  });
 });
 
 // ===============================
-// ✅ Test email
+// ✅ Test email endpoint
 // ===============================
 app.post("/api/test-email", async (req, res) => {
   const { to } = req.body;
   if (!to) return res.status(400).json({ error: "Missing recipient email" });
+
   try {
     await transporter.sendMail({
       from: process.env.GMAIL_USER,
@@ -140,19 +179,7 @@ app.post("/api/test-email", async (req, res) => {
 });
 
 // ===============================
-// ✅ DEBUG: Check notifications
-// ===============================
-app.get("/api/debug/notifications", async (req, res) => {
-  try {
-    const all = await Notification.find({}).lean();
-    res.json({ total: all.length, notifications: all });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ===============================
-// ✅ 404 handler
+// ✅ 404 handler (MUST BE LAST)
 // ===============================
 app.use((req, res) => {
   console.log("❌ 404 - Route not found:", req.method, req.path);
@@ -164,7 +191,7 @@ app.use((req, res) => {
 });
 
 // ===============================
-// ✅ Global error handler
+// ✅ Global error handler (ABSOLUTELY LAST)
 // ===============================
 app.use((err, req, res, next) => {
   console.error("🔥 Global Error:", err.stack);
