@@ -56,7 +56,6 @@ const parseTime = (timeStr) => {
       return null;
     }
 
-    // ✅ Use regex to match "8:03 AM", "08:03 AM", "8:03 PM", "08:03 PM"
     const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!match) {
       console.log("⚠️ Invalid time format:", timeStr);
@@ -88,7 +87,6 @@ const parseTime = (timeStr) => {
 
 // ============================== 
 // ✅ FIXED: Get PHT (UTC+8) current minutes
-// Render servers run UTC — must offset manually
 // ============================== 
 const getPHTMinutes = () => {
   const now = new Date();
@@ -131,14 +129,12 @@ const getPHTTimeString = () => {
 // ============================== 
 const getSessionInfo = (event) => {
   try {
-    // ✅ Use PHT time instead of server local time
     const currentMinutes = getPHTMinutes();
     
     console.log(`🕐 Current PHT minutes: ${currentMinutes}`);
 
     const sessions = [];
 
-    // ✅ MORNING TIME IN
     if (event.morningAttendance?.start && event.morningAttendance?.end) {
       const start = parseTime(event.morningAttendance.start);
       const end = parseTime(event.morningAttendance.end);
@@ -161,31 +157,23 @@ const getSessionInfo = (event) => {
       }
     }
 
-    // ✅ MORNING TIME OUT - FIXED WITH PROPER WINDOW
     if (event.morningAttendance?.timeout) {
       console.log(`🔍 Checking morning timeout: ${event.morningAttendance.timeout}`);
       const timeout = parseTime(event.morningAttendance.timeout);
       
       if (timeout) {
         const timeoutMin = timeout.hours * 60 + timeout.minutes;
-        const timeoutEnd = timeoutMin + 60; // 1 hour window
+        const timeoutEnd = timeoutMin + 60;
 
         console.log(`🔍 Morning OUT window: ${timeoutMin}-${timeoutEnd} min`);
-        console.log(`🔍 Current: ${currentMinutes} min`);
-        console.log(`🔍 Is in window? ${currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd}`);
 
         if (currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd) {
           console.log(`✅ MORNING TIME-OUT ACTIVE!`);
           sessions.push({ session: "morning", type: "out", status: "present", isLate: false });
-        } else {
-          console.log(`❌ Morning timeout not active (current: ${currentMinutes}, window: ${timeoutMin}-${timeoutEnd})`);
         }
-      } else {
-        console.log(`❌ Failed to parse morning timeout: ${event.morningAttendance.timeout}`);
       }
     }
 
-    // ✅ AFTERNOON TIME IN
     if (event.afternoonAttendance?.start && event.afternoonAttendance?.end) {
       const start = parseTime(event.afternoonAttendance.start);
       const end = parseTime(event.afternoonAttendance.end);
@@ -194,13 +182,11 @@ const getSessionInfo = (event) => {
         const startMin = start.hours * 60 + start.minutes;
         let endMin = end.hours * 60 + end.minutes;
 
-        // ✅ Handle overnight sessions (e.g. 8:03 PM - 2:08 AM)
         if (endMin < startMin) endMin += 24 * 60;
 
         const allotted = event.afternoonAttendance.allottedTime || 30;
         const lateLimit = endMin + allotted;
 
-        // Normalize current for overnight comparison
         let currMin = currentMinutes;
         if (currMin < startMin && startMin > 12 * 60) currMin += 24 * 60;
 
@@ -216,27 +202,20 @@ const getSessionInfo = (event) => {
       }
     }
 
-    // ✅ AFTERNOON TIME OUT - FIXED WITH PROPER WINDOW
     if (event.afternoonAttendance?.timeout) {
       console.log(`🔍 Checking afternoon timeout: ${event.afternoonAttendance.timeout}`);
       const timeout = parseTime(event.afternoonAttendance.timeout);
       
       if (timeout) {
         const timeoutMin = timeout.hours * 60 + timeout.minutes;
-        const timeoutEnd = timeoutMin + 60; // 1 hour window
+        const timeoutEnd = timeoutMin + 60;
         
         console.log(`🔍 Afternoon OUT window: ${timeoutMin}-${timeoutEnd} min`);
-        console.log(`🔍 Current: ${currentMinutes} min`);
-        console.log(`🔍 Is in window? ${currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd}`);
 
         if (currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd) {
           console.log(`✅ AFTERNOON TIME-OUT ACTIVE!`);
           sessions.push({ session: "afternoon", type: "out", status: "present", isLate: false });
-        } else {
-          console.log(`❌ Afternoon timeout not active (current: ${currentMinutes}, window: ${timeoutMin}-${timeoutEnd})`);
         }
-      } else {
-        console.log(`❌ Failed to parse afternoon timeout: ${event.afternoonAttendance.timeout}`);
       }
     }
 
@@ -249,7 +228,7 @@ const getSessionInfo = (event) => {
 };
 
 // ============================== 
-// ✅ FIXED: CREATE ATTENDANCE with proper timeout handling
+// ✅ CREATE ATTENDANCE
 // ============================== 
 const createAttendance = async (req, res) => {
   try {
@@ -275,7 +254,6 @@ const createAttendance = async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    // ✅ Use PHT for date and time
     const today = getPHTDateString();
     const currentTime = getPHTTimeString();
 
@@ -289,16 +267,8 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    console.log(`📋 Active sessions:`, sessions);
+    let record = await Attendance.findOne({ studentId, eventId, date: today });
 
-    // Find existing record
-    let record = await Attendance.findOne({
-      studentId,
-      eventId,
-      date: today,
-    });
-
-    // ✅ TIME IN
     if (actionType === "timein") {
       const timeInSession = sessions.find(s => s.type === "in");
       
@@ -310,20 +280,14 @@ const createAttendance = async (req, res) => {
 
       const { session, status } = timeInSession;
 
-      // Create record if doesn't exist
       if (!record) {
         record = new Attendance({
-          studentId,
-          sscId,
-          eventId,
-          date: today,
+          studentId, sscId, eventId, date: today,
           morningStatus: "absent",
           afternoonStatus: "absent",
         });
-        console.log(`📝 Creating new attendance record`);
       }
 
-      // Check if already timed in
       if (session === "morning") {
         if (record.morningIn) {
           return res.status(409).json({ 
@@ -332,7 +296,6 @@ const createAttendance = async (req, res) => {
         }
         record.morningIn = currentTime;
         record.morningStatus = status;
-        console.log(`✅ Morning time-in recorded: ${status}`);
       } else {
         if (record.afternoonIn) {
           return res.status(409).json({ 
@@ -341,53 +304,36 @@ const createAttendance = async (req, res) => {
         }
         record.afternoonIn = currentTime;
         record.afternoonStatus = status;
-        console.log(`✅ Afternoon time-in recorded: ${status}`);
       }
 
       await record.save();
-
-      console.log(`✅ TIME IN SUCCESS: ${student.firstName} ${student.lastName} - ${session} - ${status}`);
-      
       return res.status(201).json({
         message: `Successfully timed in as ${status.toUpperCase()} for ${session} session`,
         record,
       });
     }
 
-    // ✅ TIME OUT - FIXED
     if (actionType === "timeout") {
-      console.log(`🔍 Processing timeout request...`);
-      
       const timeOutSession = sessions.find(s => s.type === "out");
       
       if (!timeOutSession) {
-        console.log(`❌ No active timeout session found`);
-        console.log(`📋 Available sessions:`, sessions);
         return res.status(400).json({ 
           error: "No active time-out window available at this time. Timeout window is 1 hour from scheduled time."
         });
       }
 
       const { session } = timeOutSession;
-      console.log(`✅ Found timeout session: ${session}`);
 
-      // Check if record exists
       if (!record) {
-        console.log(`❌ No attendance record found`);
         return res.status(400).json({ 
-          error: `Cannot time out. No attendance record found. Please time in first.`
+          error: "Cannot time out. No attendance record found. Please time in first."
         });
       }
 
-      // Validate based on session
       if (session === "morning") {
-        console.log(`🔍 Checking morning timeout...`);
-        console.log(`   - morningIn: ${record.morningIn}`);
-        console.log(`   - morningOut: ${record.morningOut}`);
-        
         if (!record.morningIn) {
           return res.status(400).json({ 
-            error: "Cannot time out for morning session. You haven't timed in yet. Please time in first."
+            error: "Cannot time out for morning session. You haven't timed in yet."
           });
         }
         if (record.morningOut) {
@@ -395,18 +341,11 @@ const createAttendance = async (req, res) => {
             error: `Already timed out for morning session at ${record.morningOut}`
           });
         }
-        
         record.morningOut = currentTime;
-        console.log(`✅ Morning timeout recorded: ${currentTime}`);
-        
-      } else { // afternoon
-        console.log(`🔍 Checking afternoon timeout...`);
-        console.log(`   - afternoonIn: ${record.afternoonIn}`);
-        console.log(`   - afternoonOut: ${record.afternoonOut}`);
-        
+      } else {
         if (!record.afternoonIn) {
           return res.status(400).json({ 
-            error: "Cannot time out for afternoon session. You haven't timed in yet. Please time in first."
+            error: "Cannot time out for afternoon session. You haven't timed in yet."
           });
         }
         if (record.afternoonOut) {
@@ -414,15 +353,10 @@ const createAttendance = async (req, res) => {
             error: `Already timed out for afternoon session at ${record.afternoonOut}`
           });
         }
-        
         record.afternoonOut = currentTime;
-        console.log(`✅ Afternoon timeout recorded: ${currentTime}`);
       }
 
       await record.save();
-
-      console.log(`✅ TIME OUT SUCCESS: ${student.firstName} ${student.lastName} - ${session}`);
-
       return res.status(200).json({
         message: `Successfully timed out for ${session} session`,
         record,
@@ -484,56 +418,26 @@ const autoMarkAbsent = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ error: "Event not found" });
 
-    // ✅ Use PHT date
     const today = getPHTDateString();
     console.log(`🔴 Auto-marking ${session} absent for event: ${event.title}, Date: ${today}`);
 
     let allStudents = await User.find({ role: "student" })
       .select("_id firstName lastName yearLevel course")
       .lean();
-    
-    console.log(`👥 Total students in database: ${allStudents.length}`);
 
     const filteredStudents = filterStudentsByTab(allStudents, tab, yearLevel, family, event);
-    
-    console.log(`📋 Filtered students for tab '${tab}': ${filteredStudents.length}`);
 
     if (filteredStudents.length === 0) {
-      let message = "No students found for this selection";
-      
-      if (tab === "college" && yearLevel && yearLevel !== "all") {
-        const yearName = yearLevel === "1" ? "1st" : yearLevel === "2" ? "2nd" : yearLevel === "3" ? "3rd" : "4th";
-        message = `No ${yearName} year college students found`;
-      } else if (tab === "seniorHigh" && yearLevel && yearLevel !== "all") {
-        message = `No Grade ${yearLevel} students found`;
-      } else if (tab === "family" && family && family !== "all") {
-        message = `No Family ${family} members found`;
-      } else if (tab === "family") {
-        if (event.participationType === "FAMILY" && event.families && event.families.length > 0) {
-          message = `No family members found for families: ${event.families.join(", ")}`;
-        } else {
-          message = "No family members found for this event";
-        }
-      } else if (tab === "seniorHigh") {
-        message = "No senior high students (Grade 11-12) found";
-      } else if (tab === "college") {
-        message = "No college students (Year 1-4) found";
-      }
-
-      console.log(`⚠️ ${message}`);
       return res.status(200).json({ 
-        message,
+        message: "No students found for this selection",
         count: 0,
         totalStudents: 0,
-        warning: "No students match the current filter criteria"
       });
     }
 
     const existingRecords = await Attendance.find({ eventId, date: today }).lean();
     const recordMap = new Map();
     existingRecords.forEach(r => recordMap.set(r.studentId.toString(), r));
-
-    console.log(`📊 Existing attendance records: ${existingRecords.length}`);
 
     const bulkOps = [];
     let totalMarked = 0;
@@ -556,7 +460,6 @@ const autoMarkAbsent = async (req, res) => {
           }
         });
         totalMarked++;
-        console.log(`➕ Will create new record for: ${student.firstName} ${student.lastName}`);
       } else {
         let shouldUpdate = false;
         const updateFields = {};
@@ -565,12 +468,10 @@ const autoMarkAbsent = async (req, res) => {
           updateFields.morningStatus = "absent";
           shouldUpdate = true;
           totalMarked++;
-          console.log(`✏️ Will mark morning absent for: ${student.firstName} ${student.lastName}`);
         } else if (session === "afternoon" && !existingRecord.afternoonIn) {
           updateFields.afternoonStatus = "absent";
           shouldUpdate = true;
           totalMarked++;
-          console.log(`✏️ Will mark afternoon absent for: ${student.firstName} ${student.lastName}`);
         }
 
         if (shouldUpdate) {
@@ -586,20 +487,13 @@ const autoMarkAbsent = async (req, res) => {
 
     if (bulkOps.length > 0) {
       await Attendance.bulkWrite(bulkOps);
-      console.log(`✅ Bulk operation completed: ${bulkOps.length} operations`);
     }
-
-    console.log(`✅ Total ${session} sessions marked absent: ${totalMarked}`);
 
     const message = totalMarked > 0
       ? `${totalMarked} student(s) marked absent for ${session} session`
       : `All students already have attendance records for ${session} session`;
 
-    res.status(200).json({
-      message,
-      count: totalMarked,
-      totalStudents: filteredStudents.length,
-    });
+    res.status(200).json({ message, count: totalMarked, totalStudents: filteredStudents.length });
   } catch (err) {
     console.error("❌ AUTO absent error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
@@ -620,7 +514,6 @@ const updateAttendance = async (req, res) => {
     if (morningStatus && ["present", "late", "absent"].includes(morningStatus)) {
       record.morningStatus = morningStatus;
     }
-
     if (afternoonStatus && ["present", "late", "absent"].includes(afternoonStatus)) {
       record.afternoonStatus = afternoonStatus;
     }
@@ -631,12 +524,7 @@ const updateAttendance = async (req, res) => {
       .populate("studentId", "firstName lastName idNumber course yearLevel")
       .populate("eventId", "title");
 
-    console.log(`✅ Attendance updated: ${populated.studentId.firstName} ${populated.studentId.lastName}`);
-
-    res.status(200).json({ 
-      message: "Attendance updated", 
-      record: populated 
-    });
+    res.status(200).json({ message: "Attendance updated", record: populated });
   } catch (err) {
     console.error("❌ UPDATE attendance error:", err);
     res.status(500).json({ error: "Server error" });
@@ -649,11 +537,8 @@ const updateAttendance = async (req, res) => {
 const deleteAttendance = async (req, res) => {
   try {
     const { id } = req.params;
-
     const record = await Attendance.findByIdAndDelete(id);
     if (!record) return res.status(404).json({ error: "Attendance not found" });
-
-    console.log(`✅ Attendance deleted: ${id}`);
     res.status(200).json({ message: "Attendance deleted" });
   } catch (err) {
     console.error("❌ DELETE attendance error:", err);
@@ -662,7 +547,8 @@ const deleteAttendance = async (req, res) => {
 };
 
 // ============================== 
-// ✅ FIXED: EXPORT ATTENDANCE TO EXCEL - MATCHES YOUR EXACT FORMAT
+// ✅ FIXED: EXPORT ATTENDANCE TO EXCEL
+// Key fix: use writeBuffer() instead of write(res) to avoid stream corruption
 // ============================== 
 const exportAttendance = async (req, res) => {
   try {
@@ -670,188 +556,212 @@ const exportAttendance = async (req, res) => {
 
     console.log("📤 EXPORT REQUEST:", { eventId, tab, yearLevel, family });
 
-    if (!eventId) {
-      return res.status(400).json({ error: "Event ID required" });
-    }
-
-    if (!tab) {
-      return res.status(400).json({ error: "Tab selection required" });
-    }
+    if (!eventId) return res.status(400).json({ error: "Event ID required" });
+    if (!tab) return res.status(400).json({ error: "Tab selection required" });
 
     const event = await Event.findById(eventId);
-    if (!event) {
-      return res.status(404).json({ error: "Event not found" });
-    }
+    if (!event) return res.status(404).json({ error: "Event not found" });
 
+    // Build date range
     const startDate = new Date(event.startDate);
     const endDate = new Date(event.endDate);
     const dates = [];
-    
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       dates.push(new Date(d).toISOString().split("T")[0]);
     }
 
     console.log(`📅 Date range: ${dates.join(", ")}`);
 
+    // Get and filter students
     let allStudents = await User.find({ role: "student" })
       .select("firstName lastName idNumber course yearLevel section")
       .lean();
-
-    console.log(`👥 Total students: ${allStudents.length}`);
 
     const filteredStudents = filterStudentsByTab(allStudents, tab, yearLevel, family, event);
 
     console.log(`📊 Filtered students for export: ${filteredStudents.length}`);
 
     if (filteredStudents.length === 0) {
-      let message = "No students found to export";
-      
-      if (tab === "college" && yearLevel && yearLevel !== "all") {
-        const yearName = yearLevel === "1" ? "1st" : yearLevel === "2" ? "2nd" : yearLevel === "3" ? "3rd" : "4th";
-        message = `No ${yearName} year college students found to export`;
-      } else if (tab === "seniorHigh" && yearLevel && yearLevel !== "all") {
-        message = `No Grade ${yearLevel} students found to export`;
-      } else if (tab === "family" && family && family !== "all") {
-        message = `No Family ${family} members found to export`;
-      } else if (tab === "family") {
-        if (event.participationType === "FAMILY" && event.families && event.families.length > 0) {
-          message = `No family members found for families: ${event.families.join(", ")}`;
-        } else {
-          message = "No family members found for this event";
-        }
-      } else if (tab === "seniorHigh") {
-        message = "No senior high students (Grade 11-12) found to export";
-      } else if (tab === "college") {
-        message = "No college students (Year 1-4) found to export";
-      }
-
-      console.log(`⚠️ ${message}`);
-      return res.status(404).json({ error: message });
+      return res.status(404).json({ error: "No students found to export" });
     }
 
-    const records = await Attendance.find({ eventId })
-      .populate("studentId")
-      .lean();
+    // Get all attendance records for this event
+    const records = await Attendance.find({ eventId }).lean();
 
+    // ─── BUILD WORKBOOK ────────────────────────────────────────────
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Attendance");
+    workbook.creator = "AttendSure";
+    workbook.created = new Date();
 
-    sheet.getRow(1).values = [
-      "No.",
-      "Student ID", 
-      "Name",
-      "Course",
-      "Year",
-      "Section",
-      "Date",
-      "Session",
-      "",
-      "Time In",
-      "",
-      "Time Out"
+    const sheet = workbook.addWorksheet("Attendance", {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+
+    // ── Column definitions ──
+    sheet.columns = [
+      { header: "No.",        key: "no",        width: 6  },
+      { header: "Student ID", key: "idNumber",   width: 14 },
+      { header: "Name",       key: "name",       width: 28 },
+      { header: "Course",     key: "course",     width: 14 },
+      { header: "Year",       key: "year",       width: 10 },
+      { header: "Section",    key: "section",    width: 10 },
+      { header: "Date",       key: "date",       width: 16 },
+      { header: "Session",    key: "session",    width: 12 },
+      { header: "Status",     key: "status",     width: 12 },
+      { header: "Time In",    key: "timeIn",     width: 16 },
+      { header: "Time Out",   key: "timeOut",    width: 16 },
     ];
 
-    sheet.getColumn(1).width = 6;
-    sheet.getColumn(2).width = 12;
-    sheet.getColumn(3).width = 25;
-    sheet.getColumn(4).width = 12;
-    sheet.getColumn(5).width = 10;
-    sheet.getColumn(6).width = 10;
-    sheet.getColumn(7).width = 15;
-    sheet.getColumn(8).width = 12;
-    sheet.getColumn(9).width = 2;
-    sheet.getColumn(10).width = 15;
-    sheet.getColumn(11).width = 2;
-    sheet.getColumn(12).width = 15;
-
+    // ── Style header row ──
     const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Arial' };
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF0B84FF' }
-    };
-    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, name: "Arial", size: 11 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1D4ED8" } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.border = {
+        top:    { style: "thin", color: { argb: "FF93C5FD" } },
+        bottom: { style: "thin", color: { argb: "FF93C5FD" } },
+        left:   { style: "thin", color: { argb: "FF93C5FD" } },
+        right:  { style: "thin", color: { argb: "FF93C5FD" } },
+      };
+    });
+    headerRow.height = 28;
 
+    // Status color helpers
+    const statusFill = (status) => {
+      if (status === "PRESENT") return { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1FAE5" } };
+      if (status === "LATE")    return { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+      return                           { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+    };
+    const statusColor = (status) => {
+      if (status === "PRESENT") return { argb: "FF065F46" };
+      if (status === "LATE")    return { argb: "FF92400E" };
+      return                           { argb: "FF991B1B" };
+    };
+
+    // ── Add data rows ──
     let rowNum = 1;
-    let currentRow = 2;
-    
+
     filteredStudents.forEach((student) => {
-      dates.forEach(date => {
+      const yearSuffix = student.yearLevel === "1" ? "st"
+        : student.yearLevel === "2" ? "nd"
+        : student.yearLevel === "3" ? "rd" : "th";
+      const yearLabel = `${student.yearLevel}${yearSuffix} Year`;
+
+      dates.forEach((date, dateIdx) => {
         const formattedDate = new Date(date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric"
+          month: "short", day: "numeric", year: "numeric",
         });
 
         const record = records.find(
-          r => r.studentId?._id?.toString() === student._id.toString() &&
-               r.date === date
+          r => r.studentId?.toString() === student._id.toString() && r.date === date
         );
 
-        sheet.getRow(currentRow).values = [
-          rowNum,
-          student.idNumber,
-          `${student.firstName} ${student.lastName}`,
-          student.course,
-          `${student.yearLevel}${student.yearLevel === "1" ? "st" : student.yearLevel === "2" ? "nd" : student.yearLevel === "3" ? "rd" : "th"} Year`,
-          student.section || "B",
-          formattedDate,
-          record?.morningStatus ? record.morningStatus.toUpperCase() : "ABSENT",
-          "",
-          record?.morningIn || "—",
-          "",
-          record?.morningOut || "—"
-        ];
-        
-        sheet.getRow(currentRow).alignment = { vertical: 'middle' };
-        sheet.getRow(currentRow).font = { name: 'Arial' };
-        currentRow++;
+        const mStatus = (record?.morningStatus   || "absent").toUpperCase();
+        const aStatus = (record?.afternoonStatus || "absent").toUpperCase();
 
-        sheet.getRow(currentRow).values = [
-          "", "", "", "", "", "", "",
-          record?.afternoonStatus ? record.afternoonStatus.toUpperCase() : "ABSENT",
-          "",
-          record?.afternoonIn || "—",
-          "",
-          record?.afternoonOut || "—"
-        ];
-        
-        sheet.getRow(currentRow).alignment = { vertical: 'middle' };
-        sheet.getRow(currentRow).font = { name: 'Arial' };
-        currentRow++;
+        // ── Morning row ──
+        const mRow = sheet.addRow({
+          no:       dateIdx === 0 ? rowNum : "",
+          idNumber: dateIdx === 0 ? (student.idNumber || "") : "",
+          name:     dateIdx === 0 ? `${student.firstName} ${student.lastName}` : "",
+          course:   dateIdx === 0 ? (student.course || "") : "",
+          year:     dateIdx === 0 ? yearLabel : "",
+          section:  dateIdx === 0 ? (student.section || "B") : "",
+          date:     formattedDate,
+          session:  "Morning",
+          status:   mStatus,
+          timeIn:   record?.morningIn   || "—",
+          timeOut:  record?.morningOut  || "—",
+        });
+
+        mRow.height = 20;
+        mRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.font = { name: "Arial", size: 10 };
+          cell.alignment = { vertical: "middle", horizontal: colNum <= 6 ? "left" : "center" };
+          cell.border = {
+            top:    { style: "hair", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "hair", color: { argb: "FFE2E8F0" } },
+            left:   { style: "hair", color: { argb: "FFE2E8F0" } },
+            right:  { style: "hair", color: { argb: "FFE2E8F0" } },
+          };
+        });
+
+        // Highlight status cell for morning
+        const mStatusCell = mRow.getCell("status");
+        mStatusCell.fill  = statusFill(mStatus);
+        mStatusCell.font  = { name: "Arial", size: 10, bold: true, color: statusColor(mStatus) };
+
+        // Stripe even student rows
+        if (rowNum % 2 === 0) {
+          mRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+            if (colNum !== 9) { // skip status cell
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+            }
+          });
+        }
+
+        // ── Afternoon row ──
+        const aRow = sheet.addRow({
+          no: "", idNumber: "", name: "", course: "", year: "", section: "",
+          date:    formattedDate,
+          session: "Afternoon",
+          status:  aStatus,
+          timeIn:  record?.afternoonIn  || "—",
+          timeOut: record?.afternoonOut || "—",
+        });
+
+        aRow.height = 20;
+        aRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.font = { name: "Arial", size: 10 };
+          cell.alignment = { vertical: "middle", horizontal: colNum <= 6 ? "left" : "center" };
+          cell.border = {
+            top:    { style: "hair", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "hair", color: { argb: "FFE2E8F0" } },
+            left:   { style: "hair", color: { argb: "FFE2E8F0" } },
+            right:  { style: "hair", color: { argb: "FFE2E8F0" } },
+          };
+        });
+
+        // Highlight status cell for afternoon
+        const aStatusCell = aRow.getCell("status");
+        aStatusCell.fill  = statusFill(aStatus);
+        aStatusCell.font  = { name: "Arial", size: 10, bold: true, color: statusColor(aStatus) };
+
+        if (rowNum % 2 === 0) {
+          aRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+            if (colNum !== 9) {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+            }
+          });
+        }
       });
-      
+
       rowNum++;
     });
 
-    let filename = `attendance_${event.title.replace(/\s+/g, '_')}`;
-    if (tab === "family" && family && family !== "all") {
-      filename += `_Family_${family}`;
-    } else if (tab === "seniorHigh" && yearLevel && yearLevel !== "all") {
-      filename += `_Grade_${yearLevel}`;
-    } else if (tab === "college" && yearLevel && yearLevel !== "all") {
-      filename += `_Year_${yearLevel}`;
-    } else if (tab) {
-      filename += `_${tab}`;
-    }
+    // ─── BUILD FILENAME ───────────────────────────────────────────
+    let filename = `attendance_${event.title.replace(/\s+/g, "_")}`;
+    if (tab === "family" && family && family !== "all") filename += `_Family_${family}`;
+    else if (tab === "seniorHigh" && yearLevel && yearLevel !== "all") filename += `_Grade_${yearLevel}`;
+    else if (tab === "college" && yearLevel && yearLevel !== "all") filename += `_Year_${yearLevel}`;
+    else if (tab) filename += `_${tab}`;
     filename += ".xlsx";
 
     console.log(`✅ Generating Excel file: ${filename}`);
 
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`
-    );
+    // ─── ✅ KEY FIX: Use writeBuffer() instead of write(res) ──────
+    // write(res) can cause partial/corrupted files on some Node versions.
+    // writeBuffer() generates the complete buffer first, then sends it
+    // as a single response — guaranteed to be a valid .xlsx binary.
+    const buffer = await workbook.xlsx.writeBuffer();
 
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", buffer.length);
+    res.status(200).end(buffer);
 
-    console.log(`✅ Excel export completed successfully`);
+    console.log(`✅ Excel export completed: ${buffer.length} bytes`);
 
   } catch (err) {
     console.error("❌ EXPORT error:", err);
