@@ -30,6 +30,9 @@ const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
 
+// 🆕 SSC NOTIFICATION ROUTE (view-only)
+const sscNotificationRoute = require("./routes/ssc/notificationRoute");
+
 // 🆕 YEAR-END ROUTE
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
@@ -84,12 +87,15 @@ app.use("/api/register", registerRoute);
 // 2️⃣ OSS sub-routes before main /api/oss
 app.use("/api/oss/notifications", notificationRoute);
 
-// 3️⃣ Attendance routes (MOST SPECIFIC FIRST!)
+// 3️⃣ SSC NOTIFICATION ROUTE (view-only) — before /api/ssc generic routes
+app.use("/api/ssc/notifications", sscNotificationRoute);
+
+// 4️⃣ Attendance routes (MOST SPECIFIC FIRST!)
 app.use("/api/student/attendance", studentAttendanceRoute);
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
-// 4️⃣ Student / Scanner / SSC user routes
+// 5️⃣ Student / Scanner / SSC user routes
 app.use("/api/scanner", scannerLookupRoute);
 app.use("/api/student/user", studentUserRoute);
 app.use("/api/student", studentRoute);
@@ -97,20 +103,20 @@ app.use("/api/ssc/user", sscUserRoute);
 app.use("/api/ssc/students", sscStudentsRoute);
 app.use("/api/users", ossUserRoute);
 
-// 5️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
+// 6️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
 app.use("/api/year-end", yearEndRoute);
 
-// 6️⃣ SUPERADMIN routes
+// 7️⃣ SUPERADMIN routes
 app.use("/api/superadmin/users", superadminUserProfileRoute);
 app.use("/api/superadmin", superadminUserRoute);
 
-// 7️⃣ Other specific routes
+// 8️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
 app.use("/api/login", loginRoute);
 app.use("/api/user", userRoute);
 app.use("/api/events", eventRoute);
 
-// 8️⃣ General OSS routes (last among API routes)
+// 9️⃣ General OSS routes (last among API routes)
 app.use("/api/oss", ossRoute);
 
 // ===============================
@@ -132,6 +138,10 @@ app.get("/", (req, res) => {
       studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
+      // SSC Notifications (view-only)
+      sscNotifications: "GET /api/ssc/notifications/all?userId=&role=ssc",
+      sscNotifUnread: "GET /api/ssc/notifications/unread/:userId",
+      sscNotifRead: "POST /api/ssc/notifications/:id/read",
       // Superadmin
       superadminUsers: "GET /api/superadmin/users",
       superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
