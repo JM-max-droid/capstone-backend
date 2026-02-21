@@ -138,16 +138,13 @@ app.get("/", (req, res) => {
       studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
-      // SSC Notifications (view-only)
       sscNotifications: "GET /api/ssc/notifications/all?userId=&role=ssc",
       sscNotifUnread: "GET /api/ssc/notifications/unread/:userId",
       sscNotifRead: "POST /api/ssc/notifications/:id/read",
-      // Superadmin
       superadminUsers: "GET /api/superadmin/users",
       superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
       superadminUpdatePassword: "PUT /api/superadmin/users/update-password",
       superadminUpdatePicture: "PUT /api/superadmin/users/update-picture",
-      // Year-End
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
       yearEndManualAction: "POST /api/year-end/manual-action",
@@ -179,6 +176,22 @@ app.post("/api/test-email", async (req, res) => {
 });
 
 // ===============================
+// ✅ DEBUG: Check notifications in DB
+// ===============================
+app.get("/api/debug/notifications", async (req, res) => {
+  try {
+    const Notification = require("./models/Notification");
+    const all = await Notification.find({}).lean();
+    res.json({
+      total: all.length,
+      notifications: all
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ===============================
 // ✅ 404 handler (MUST BE LAST)
 // ===============================
 app.use((req, res) => {
@@ -197,5 +210,3 @@ app.use((err, req, res, next) => {
   console.error("🔥 Global Error:", err.stack);
   res.status(500).json({ error: "Internal Server Error" });
 });
-
-module.exports = app;
