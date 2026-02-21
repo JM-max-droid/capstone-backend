@@ -4,49 +4,36 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ UNIVERSAL LOGIN
+// ✅ POST /api/login
 router.post("/", async (req, res) => {
   console.log("\n🔵 ========== LOGIN REQUEST ==========");
   console.log("📧 Email:", req.body.email);
-  console.log("🔑 Has password:", !!req.body.password);
 
   try {
     const { email, password } = req.body;
 
-    // 🔹 Validate input
     if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required",
-      });
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    console.log("🔍 Looking for user with email:", normalizedEmail);
-
-    // 🔹 Find user by email
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      console.log("❌ No user found with email:", normalizedEmail);
-      return res.status(400).json({
-        error: "Invalid email or password",
-      });
+      return res.status(400).json({ error: "Invalid email or password" });
     }
 
     console.log("✅ User found:", user.firstName, user.lastName, "| Role:", user.role);
-    console.log("🔑 Has stored password:", !!user.password);
 
-    // 🔹 Check if account has password (fully registered)
     if (!user.password) {
-      console.log("❌ User has no password - not yet registered");
       return res.status(400).json({
         error: "Account not fully registered. Please complete registration first.",
       });
     }
 
-    // ✅ CHECK IF EMAIL IS VERIFIED
-    if (!user.isVerified) {
-      console.log("❌ Email not yet verified:", normalizedEmail);
+    // ✅ CHECK EMAIL VERIFICATION (isEmailVerified — correct field from User model)
+    if (!user.isEmailVerified) {
+      console.log("❌ Email not verified:", normalizedEmail);
       return res.status(403).json({
         error: "Email not verified. Please check your inbox and verify your email first.",
         requiresVerification: true,
@@ -54,34 +41,23 @@ router.post("/", async (req, res) => {
       });
     }
 
-    console.log("✅ Email is verified!");
+    console.log("✅ Email verified!");
 
     // 🔹 Compare password
-    console.log("🔐 Comparing passwords...");
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log("🔐 Password match result:", isMatch);
-
     if (!isMatch) {
-      console.log("❌ Password does not match");
-      return res.status(400).json({
-        error: "Invalid email or password",
-      });
+      return res.status(400).json({ error: "Invalid email or password" });
     }
 
     console.log("✅ Password matched!");
 
-    // 🔹 Generate JWT token
+    // 🔹 Generate JWT
     const token = jwt.sign(
-      {
-        id: user._id,
-        role: user.role,
-        email: user.email,
-      },
+      { id: user._id, role: user.role, email: user.email },
       process.env.JWT_SECRET || "your_super_secret_key_here",
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
 
-    // 🔹 Clean user data
     const userInfo = {
       id: user._id,
       idNumber: user.idNumber,
@@ -98,10 +74,10 @@ router.post("/", async (req, res) => {
       photoURL: user.photoURL || null,
       qrCode: user.qrCode || null,
       role: user.role,
-      isVerified: user.isVerified,
+      isEmailVerified: user.isEmailVerified,
     };
 
-    console.log("✅ Login successful for:", user.email);
+    console.log("✅ Login successful:", user.email);
     console.log("🔵 =====================================\n");
 
     res.status(200).json({
@@ -113,9 +89,7 @@ router.post("/", async (req, res) => {
 
   } catch (err) {
     console.error("🔥 Login error:", err);
-    res.status(500).json({
-      error: "Server error during login",
-    });
+    res.status(500).json({ error: "Server error during login" });
   }
 });
 

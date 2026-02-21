@@ -8,213 +8,53 @@ router.get("/", async (req, res) => {
 
   try {
     const { token } = req.query;
-
     console.log("🔑 Token received:", token ? token.substring(0, 20) + "..." : "NONE");
 
-    // ❌ No token
     if (!token) {
-      console.log("❌ No token provided in URL");
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verification Failed</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-            .container { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
-            .icon { font-size: 64px; margin-bottom: 20px; }
-            h1 { color: #1E293B; font-size: 28px; margin: 0 0 15px; }
-            p { color: #64748B; font-size: 16px; line-height: 1.6; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="icon">❌</div>
-            <h1>Missing Token</h1>
-            <p>Invalid verification link. Please check your email and try again.</p>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Failed</title><style>body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);margin:0;padding:20px;min-height:100vh;display:flex;align-items:center;justify-content:center}.c{background:#fff;border-radius:16px;padding:40px;max-width:500px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2);text-align:center}.i{font-size:64px;margin-bottom:20px}h1{color:#1e293b;font-size:28px;margin:0 0 15px}p{color:#64748b;font-size:16px;line-height:1.6;margin:0}</style></head><body><div class="c"><div class="i">❌</div><h1>Missing Token</h1><p>Invalid verification link. Please check your email and try again.</p></div></body></html>`);
     }
 
-    // 🔍 Find user with valid token
-    console.log("🔍 Searching for user with token...");
+    // 🔍 Find user with valid non-expired token
     const user = await User.findOne({
       verificationToken: token,
-      verificationTokenExpiry: { $gt: Date.now() },
+      verificationTokenExpiry: { $gt: new Date() },
     });
 
-    // ❌ Token invalid or expired
     if (!user) {
       console.log("❌ Token invalid or expired");
-
       const expiredUser = await User.findOne({ verificationToken: token });
-      if (expiredUser) {
-        console.log("⚠️  Token expired for user:", expiredUser.email);
-      } else {
-        console.log("⚠️  Token not found in database");
-      }
+      if (expiredUser) console.log("⚠️ Expired for:", expiredUser.email);
+      else console.log("⚠️ Token not in DB");
 
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Verification Failed</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-            .container { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
-            .icon { font-size: 64px; margin-bottom: 20px; }
-            h1 { color: #1E293B; font-size: 28px; margin: 0 0 15px; }
-            p { color: #64748B; font-size: 16px; line-height: 1.6; margin: 0 0 10px; }
-            .warning-box { background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 8px; padding: 15px; margin-top: 20px; text-align: left; }
-            .warning-box p { color: #92400E; font-size: 14px; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="icon">⏰</div>
-            <h1>Verification Link Expired</h1>
-            <p>This verification link is invalid or has expired.</p>
-            <div class="warning-box">
-              <p><strong>⚠️ Note:</strong> Verification links expire after 1 hour for security reasons.</p>
-            </div>
-            <p style="margin-top: 20px;">Please request a new verification link from the app.</p>
-          </div>
-        </body>
-        </html>
-      `);
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Expired</title><style>body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);margin:0;padding:20px;min-height:100vh;display:flex;align-items:center;justify-content:center}.c{background:#fff;border-radius:16px;padding:40px;max-width:500px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2);text-align:center}.i{font-size:64px;margin-bottom:20px}h1{color:#1e293b;font-size:28px;margin:0 0 15px}p{color:#64748b;font-size:16px;line-height:1.6;margin:0 0 10px}.wb{background:#fef3c7;border-left:4px solid #f59e0b;border-radius:8px;padding:15px;margin-top:20px;text-align:left}.wb p{color:#92400e;font-size:14px;margin:0}</style></head><body><div class="c"><div class="i">⏰</div><h1>Link Expired</h1><p>This verification link is invalid or has expired.</p><div class="wb"><p><strong>⚠️ Note:</strong> Links expire after 1 hour. Please request a new one from the app.</p></div></div></body></html>`);
     }
 
     console.log("✅ User found:", user.firstName, user.lastName);
-    console.log("📧 Email:", user.email);
 
     // ⚠️ Already verified
-    if (user.isVerified) {
-      console.log("⚠️  User already verified");
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Already Verified</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0B84FF 0%, #0073E6 100%); margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-            .container { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
-            .icon { font-size: 64px; margin-bottom: 20px; }
-            h1 { color: #1E293B; font-size: 28px; margin: 0 0 15px; }
-            p { color: #64748B; font-size: 16px; line-height: 1.6; margin: 0; }
-            .success-box { background-color: #D1FAE5; border-left: 4px solid #10B981; border-radius: 8px; padding: 15px; margin-top: 20px; text-align: left; }
-            .success-box p { color: #065F46; font-size: 14px; margin: 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="icon">✅</div>
-            <h1>Already Verified</h1>
-            <p>Your email has already been verified.</p>
-            <div class="success-box">
-              <p><strong>✓ You're all set!</strong> You can now login to your AttendSure account.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `);
+    if (user.isEmailVerified) {
+      console.log("⚠️ Already verified");
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Already Verified</title><style>body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#0B84FF,#0073E6);margin:0;padding:20px;min-height:100vh;display:flex;align-items:center;justify-content:center}.c{background:#fff;border-radius:16px;padding:40px;max-width:500px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2);text-align:center}.i{font-size:64px;margin-bottom:20px}h1{color:#1e293b;font-size:28px;margin:0 0 15px}p{color:#64748b;font-size:16px;line-height:1.6;margin:0}.sb{background:#d1fae5;border-left:4px solid #10b981;border-radius:8px;padding:15px;margin-top:20px;text-align:left}.sb p{color:#065f46;font-size:14px;margin:0}</style></head><body><div class="c"><div class="i">✅</div><h1>Already Verified</h1><p>Your email has already been verified.</p><div class="sb"><p><strong>✓ You're all set!</strong> You can now login to your AttendSure account.</p></div></div></body></html>`);
     }
 
     // ✅ Verify the user
-    console.log("🔄 Updating user verification status...");
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { isEmailVerified: true },
+        $unset: { verificationToken: "", verificationTokenExpiry: "" },
+      }
+    );
 
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpiry = undefined;
+    console.log("\n✅ ========== EMAIL VERIFIED ==========");
+    console.log("👤", user.firstName, user.lastName, "| 📧", user.email);
+    console.log("======================================\n");
 
-    await user.save();
-
-    console.log("\n✅ ========== EMAIL VERIFIED SUCCESSFULLY ==========");
-    console.log("👤 User:", user.firstName, user.lastName);
-    console.log("📧 Email:", user.email);
-    console.log("🆔 User ID:", user._id);
-    console.log("===================================================\n");
-
-    // ✅ Success response
-    return res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Email Verified</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0B84FF 0%, #0073E6 100%); margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-          .container { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; animation: slideUp 0.5s ease-out; }
-          @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-          .icon { font-size: 80px; margin-bottom: 20px; animation: scaleIn 0.6s ease-out; }
-          @keyframes scaleIn { from { transform: scale(0); } to { transform: scale(1); } }
-          h1 { color: #1E293B; font-size: 32px; margin: 0 0 15px; font-weight: 700; }
-          .welcome { color: #0B84FF; font-size: 20px; font-weight: 600; margin: 0 0 20px; }
-          p { color: #64748B; font-size: 16px; line-height: 1.6; margin: 0 0 10px; }
-          .success-box { background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%); border-radius: 12px; padding: 20px; margin-top: 25px; text-align: left; }
-          .success-box p { color: #065F46; font-size: 15px; margin: 0; }
-          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #E2E8F0; }
-          .footer p { color: #94A3B8; font-size: 13px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="icon">🎉</div>
-          <h1>Email Verified!</h1>
-          <p class="welcome">Welcome, ${user.firstName}!</p>
-          <p>Your email has been successfully verified.</p>
-          <div class="success-box">
-            <p><strong>✓ What's Next?</strong></p>
-            <p style="margin-top: 10px;">You can now login to your AttendSure account and start using all features.</p>
-          </div>
-          <div class="footer">
-            <p>AttendSure Portal © 2025</p>
-            <p style="margin-top: 5px; font-size: 12px;">You can close this window now.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `);
+    return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Email Verified</title><style>body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#0B84FF,#0073E6);margin:0;padding:20px;min-height:100vh;display:flex;align-items:center;justify-content:center}.c{background:#fff;border-radius:16px;padding:40px;max-width:500px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2);text-align:center;animation:s .5s ease-out}@keyframes s{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.i{font-size:80px;margin-bottom:20px}h1{color:#1e293b;font-size:32px;margin:0 0 15px;font-weight:700}.w{color:#0B84FF;font-size:20px;font-weight:600;margin:0 0 20px}p{color:#64748b;font-size:16px;line-height:1.6;margin:0 0 10px}.sb{background:linear-gradient(135deg,#d1fae5,#a7f3d0);border-radius:12px;padding:20px;margin-top:25px;text-align:left}.sb p{color:#065f46;font-size:15px;margin:0}.f{margin-top:30px;padding-top:20px;border-top:1px solid #e2e8f0}.f p{color:#94a3b8;font-size:13px}</style></head><body><div class="c"><div class="i">🎉</div><h1>Email Verified!</h1><p class="w">Welcome, ${user.firstName}!</p><p>Your email has been successfully verified.</p><div class="sb"><p><strong>✓ What's Next?</strong></p><p style="margin-top:10px">You can now login to your AttendSure account and start using all features.</p></div><div class="f"><p>AttendSure Portal © 2025</p><p style="font-size:12px">You can close this window now.</p></div></div></body></html>`);
 
   } catch (err) {
-    console.error("\n🔥 ========== VERIFICATION ERROR ==========");
-    console.error("Error:", err);
-    console.error("Stack:", err.stack);
-    console.error("==========================================\n");
-
-    return res.status(500).send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Server Error</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); margin: 0; padding: 20px; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-          .container { background: white; border-radius: 16px; padding: 40px; max-width: 500px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); text-align: center; }
-          .icon { font-size: 64px; margin-bottom: 20px; }
-          h1 { color: #1E293B; font-size: 28px; margin: 0 0 15px; }
-          p { color: #64748B; font-size: 16px; line-height: 1.6; margin: 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="icon">💥</div>
-          <h1>Server Error</h1>
-          <p>Something went wrong while verifying your email.</p>
-          <p style="margin-top: 15px;">Please try again later or contact support.</p>
-        </div>
-      </body>
-      </html>
-    `);
+    console.error("🔥 Verification error:", err);
+    return res.status(500).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title><style>body{font-family:-apple-system,sans-serif;background:linear-gradient(135deg,#ef4444,#dc2626);margin:0;padding:20px;min-height:100vh;display:flex;align-items:center;justify-content:center}.c{background:#fff;border-radius:16px;padding:40px;max-width:500px;width:100%;text-align:center}.i{font-size:64px;margin-bottom:20px}h1{color:#1e293b}p{color:#64748b}</style></head><body><div class="c"><div class="i">💥</div><h1>Server Error</h1><p>Something went wrong. Please try again later.</p></div></body></html>`);
   }
 });
 
