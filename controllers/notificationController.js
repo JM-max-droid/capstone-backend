@@ -1,4 +1,5 @@
 const Notification = require("../models/Notification");
+const mongoose = require("mongoose");
 
 /* ===============================
    CREATE (OSS / ADMIN)
@@ -37,28 +38,9 @@ const getNotifications = async (req, res) => {
   try {
     const { userId, role } = req.query;
 
-    console.log("[getNotifications] userId:", userId, "role:", role);
-
-    // Debug: count lahat ng notifications sa DB
-    const totalCount = await Notification.countDocuments({});
-    console.log("[getNotifications] Total notifications in DB (no filter):", totalCount);
-
-    // Debug: pati yung isDeleted:false
-    const notDeletedCount = await Notification.countDocuments({ isDeleted: false });
-    console.log("[getNotifications] Not deleted count:", notDeletedCount);
-
-    // Debug: i-list lahat para makita kung may data talaga
-    const allRaw = await Notification.find({}).lean();
-    console.log("[getNotifications] All raw notifications:", JSON.stringify(allRaw.map(n => ({
-      _id: n._id,
-      title: n.title,
-      isDeleted: n.isDeleted,
-      deletedBy: n.deletedBy,
-      createdAt: n.createdAt
-    }))));
-
     let query = { isDeleted: false };
 
+    // Student / SSC filtering
     if (role === "student" || role === "ssc") {
       if (!userId) {
         return res.status(400).json({
@@ -66,18 +48,18 @@ const getNotifications = async (req, res) => {
           error: "userId is required"
         });
       }
-      query.deletedBy = { $ne: userId };
+
+      // Fix: convert to ObjectId for proper MongoDB comparison
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+      query.deletedBy = { $ne: userObjectId };
     }
 
-    console.log("[getNotifications] Final query:", JSON.stringify(query));
-
-    const notifications = await Notification.find(query).sort({ createdAt: -1 });
-
-    console.log("[getNotifications] Found:", notifications.length);
+    const notifications = await Notification.find(query).sort({
+      createdAt: -1
+    });
 
     res.json({ success: true, notifications });
   } catch (e) {
-    console.error("[getNotifications] Error:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
@@ -147,7 +129,7 @@ const deleteNotification = async (req, res) => {
       });
     }
 
-    // OSS / ADMIN → HARD DELETE
+    // OSS / ADMIN → HARD DELETE (hide from everyone)
     if (role === "oss" || role === "admin") {
       notif.isDeleted = true;
       await notif.save();
@@ -158,7 +140,7 @@ const deleteNotification = async (req, res) => {
       });
     }
 
-    // STUDENT / SSC → SOFT DELETE
+    // STUDENT / SSC → SOFT DELETE (hide for this user only)
     if (role === "student" || role === "ssc") {
       if (!userId) {
         return res.status(400).json({
@@ -167,8 +149,15 @@ const deleteNotification = async (req, res) => {
         });
       }
 
-      if (!notif.deletedBy.includes(userId)) {
-        notif.deletedBy.push(userId);
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+
+      // Fix: compare as strings to avoid duplicate ObjectId entries
+      const alreadyDeleted = notif.deletedBy.some(
+        (id) => id.toString() === userObjectId.toString()
+      );
+
+      if (!alreadyDeleted) {
+        notif.deletedBy.push(userObjectId);
         await notif.save();
       }
 
@@ -202,8 +191,15 @@ const markAsRead = async (req, res) => {
       });
     }
 
-    if (!notif.readBy.includes(userId)) {
-      notif.readBy.push(userId);
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    // Fix: compare as strings to avoid duplicate entries
+    const alreadyRead = notif.readBy.some(
+      (id) => id.toString() === userObjectId.toString()
+    );
+
+    if (!alreadyRead) {
+      notif.readBy.push(userObjectId);
       await notif.save();
     }
 
@@ -228,7 +224,10 @@ const markAsUnread = async (req, res) => {
       });
     }
 
-    notif.readBy = notif.readBy.filter(id => id !== userId);
+    // Fix: use toString() so ObjectId vs string comparison works correctly
+    notif.readBy = notif.readBy.filter(
+      (id) => id.toString() !== userId.toString()
+    );
     await notif.save();
 
     res.json({ success: true, message: "Marked as unread" });
@@ -244,10 +243,13 @@ const getUnreadNotifications = async (req, res) => {
   try {
     const { userId } = req.params;
 
+    // Fix: convert to ObjectId so $ne works correctly on ObjectId arrays
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
     const unread = await Notification.find({
       isDeleted: false,
-      deletedBy: { $ne: userId },
-      readBy: { $ne: userId }
+      deletedBy: { $ne: userObjectId },
+      readBy: { $ne: userObjectId }
     }).sort({ createdAt: -1 });
 
     res.json({
