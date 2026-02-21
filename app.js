@@ -33,8 +33,9 @@ const ossUserRoute = require("./routes/oss/userRoute");
 // 🆕 YEAR-END ROUTE
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
-// 🆕 SUPERADMIN ROUTE
-const superadminUserRoute = require("./routes/superadmin/userRoute");
+// 🆕 SUPERADMIN ROUTES
+const superadminUserRoute        = require("./routes/superadmin/userRoute");
+const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute");
 
 // ===============================
 // ✅ App Setup
@@ -96,11 +97,12 @@ app.use("/api/ssc/user", sscUserRoute);
 app.use("/api/ssc/students", sscStudentsRoute);
 app.use("/api/users", ossUserRoute);
 
-// 🆕 5️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
+// 5️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
 app.use("/api/year-end", yearEndRoute);
 
 // 6️⃣ SUPERADMIN routes
-app.use("/api/superadmin/users", superadminUserRoute);
+app.use("/api/superadmin/users", superadminUserProfileRoute);
+app.use("/api/superadmin", superadminUserRoute);
 
 // 7️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
@@ -130,8 +132,12 @@ app.get("/", (req, res) => {
       studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
+      // Superadmin
       superadminUsers: "GET /api/superadmin/users",
-      // 🆕 Year-End endpoints
+      superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
+      superadminUpdatePassword: "PUT /api/superadmin/users/update-password",
+      superadminUpdatePicture: "PUT /api/superadmin/users/update-picture",
+      // Year-End
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
       yearEndManualAction: "POST /api/year-end/manual-action",
