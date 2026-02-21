@@ -43,7 +43,7 @@ const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute
 const app = express();
 
 // ✅ FIX: Trust proxy for Render deployment
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 app.use(cors({
   origin: "*",
@@ -60,13 +60,13 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 connectDB();
 
 // ===============================
-// ✅ Nodemailer transporter
+// ✅ Nodemailer transporter (used for test-email endpoint)
 // ===============================
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -132,18 +132,16 @@ app.get("/", (req, res) => {
       studentUser: "GET /api/student/user?idNumber=xxx",
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
-      // Superadmin
       superadminUsers: "GET /api/superadmin/users",
       superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
       superadminUpdatePassword: "PUT /api/superadmin/users/update-password",
       superadminUpdatePicture: "PUT /api/superadmin/users/update-picture",
-      // Year-End
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
       yearEndManualAction: "POST /api/year-end/manual-action",
       yearEndAcademicYears: "GET /api/year-end/academic-years",
       yearEndMigrate: "POST /api/year-end/migrate",
-    }
+    },
   });
 });
 
@@ -156,15 +154,15 @@ app.post("/api/test-email", async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: process.env.GMAIL_USER,
+      from: `"AttendSure" <${process.env.EMAIL_USER}>`,
       to,
       subject: "Test Email from AttendSure",
-      text: "This is a test email. Your NodeMailer setup works!",
+      text: "This is a test email. Your Nodemailer setup works!",
     });
     res.json({ message: "✅ Test email sent successfully" });
   } catch (error) {
-    console.error("❌ Error sending email:", error);
-    res.status(500).json({ error: "Error sending email" });
+    console.error("❌ Error sending test email:", error);
+    res.status(500).json({ error: "Error sending email", details: error.message });
   }
 });
 
@@ -173,10 +171,10 @@ app.post("/api/test-email", async (req, res) => {
 // ===============================
 app.use((req, res) => {
   console.log("❌ 404 - Route not found:", req.method, req.path);
-  res.status(404).json({ 
+  res.status(404).json({
     error: "Route not found",
     path: req.path,
-    method: req.method
+    method: req.method,
   });
 });
 
