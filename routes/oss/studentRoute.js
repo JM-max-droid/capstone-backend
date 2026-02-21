@@ -1,4 +1,4 @@
-// routes/student/studentRoute.js - FIXED WITH REMOVE SSC
+// routes/oss/studentRoute.js
 const express = require("express");
 const router = express.Router();
 const controller = require("../../controllers/oss/studentController");
@@ -14,6 +14,9 @@ router.post("/convert-to-ssc", controller.convertToSSC);
 
 // POST remove SSC status (convert back to student)
 router.post("/remove-from-ssc", controller.removeFromSSC);
+
+// POST reset student password
+router.post("/reset-password", controller.resetPassword);
 
 // PUT update student by ID number
 router.put("/:idNumber", controller.updateStudent);
