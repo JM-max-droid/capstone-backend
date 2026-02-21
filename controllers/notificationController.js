@@ -37,9 +37,28 @@ const getNotifications = async (req, res) => {
   try {
     const { userId, role } = req.query;
 
+    console.log("[getNotifications] userId:", userId, "role:", role);
+
+    // Debug: count lahat ng notifications sa DB
+    const totalCount = await Notification.countDocuments({});
+    console.log("[getNotifications] Total notifications in DB (no filter):", totalCount);
+
+    // Debug: pati yung isDeleted:false
+    const notDeletedCount = await Notification.countDocuments({ isDeleted: false });
+    console.log("[getNotifications] Not deleted count:", notDeletedCount);
+
+    // Debug: i-list lahat para makita kung may data talaga
+    const allRaw = await Notification.find({}).lean();
+    console.log("[getNotifications] All raw notifications:", JSON.stringify(allRaw.map(n => ({
+      _id: n._id,
+      title: n.title,
+      isDeleted: n.isDeleted,
+      deletedBy: n.deletedBy,
+      createdAt: n.createdAt
+    }))));
+
     let query = { isDeleted: false };
 
-    // Student / SSC filtering
     if (role === "student" || role === "ssc") {
       if (!userId) {
         return res.status(400).json({
@@ -47,16 +66,18 @@ const getNotifications = async (req, res) => {
           error: "userId is required"
         });
       }
-
       query.deletedBy = { $ne: userId };
     }
 
-    const notifications = await Notification.find(query).sort({
-      createdAt: -1
-    });
+    console.log("[getNotifications] Final query:", JSON.stringify(query));
+
+    const notifications = await Notification.find(query).sort({ createdAt: -1 });
+
+    console.log("[getNotifications] Found:", notifications.length);
 
     res.json({ success: true, notifications });
   } catch (e) {
+    console.error("[getNotifications] Error:", e);
     res.status(500).json({ success: false, error: e.message });
   }
 };
@@ -199,6 +220,13 @@ const markAsUnread = async (req, res) => {
   try {
     const { userId } = req.body;
     const notif = await Notification.findById(req.params.id);
+
+    if (!notif) {
+      return res.status(404).json({
+        success: false,
+        error: "Notification not found"
+      });
+    }
 
     notif.readBy = notif.readBy.filter(id => id !== userId);
     await notif.save();
