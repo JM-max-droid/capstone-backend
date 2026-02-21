@@ -5,7 +5,7 @@ const {
   updateProfileInfo,
   updatePassword,
   updateProfilePicture,
-} = require("../../controllers/super/superUserProfileController");
+} = require("../../controllers/superadmin/userProfileController");
 
 // ⚠️  Named routes FIRST, dynamic last
 router.put("/update-info",     updateProfileInfo);
