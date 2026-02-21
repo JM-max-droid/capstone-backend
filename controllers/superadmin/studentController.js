@@ -54,7 +54,15 @@ exports.addStudent = async (req, res) => {
       idNumber, firstName, middleName = "", lastName,
       age, course = "", strand = "", yearLevel, section,
       email = "", password = "",
+      // ✅ FIXED: respect role from body so SSC can be added directly
+      role = "student",
+      sscPosition = "",
     } = req.body;
+
+    // Validate role — only student/ssc allowed on this route
+    const validRoles = ["student", "ssc"];
+    if (!validRoles.includes(role))
+      return res.status(400).json({ error: `Invalid role for this endpoint. Must be: ${validRoles.join(", ")}` });
 
     if (!idNumber || !firstName || !lastName || !age || !yearLevel || !section)
       return res.status(400).json({ error: "Incomplete data. Please fill all required fields." });
@@ -77,12 +85,16 @@ exports.addStudent = async (req, res) => {
       age:        Number(age),
       yearLevel:  yearLevel.trim(),
       section:    section.trim(),
-      role:       "student",
+      role,                             // ✅ "student" or "ssc" from body
       photoURL:   "",
       qrCode:     "",
       course:     course.trim() || "",
       strand:     strand.trim() || "",
     };
+
+    // ✅ Save SSC position if role is ssc
+    if (role === "ssc" && sscPosition.trim())
+      studentData.sscPosition = sscPosition.trim();
 
     if (email && email.trim())       studentData.email    = email.trim().toLowerCase();
     if (password && password.trim()) studentData.password = await bcrypt.hash(password.trim(), 10);
@@ -91,8 +103,8 @@ exports.addStudent = async (req, res) => {
     const created = await User.findById(student._id)
       .select("-password -verificationToken -verificationTokenExpiry -__v").lean();
 
-    console.log("✅ Student added:", created.idNumber);
-    res.status(201).json({ message: "Student added successfully", student: created });
+    console.log(`✅ ${role.toUpperCase()} added:`, created.idNumber);
+    res.status(201).json({ message: `${role === "ssc" ? "SSC officer" : "Student"} added successfully`, student: created });
   } catch (err) {
     console.error("🔥 Add student error:", err);
     if (err.name === "ValidationError") {
@@ -134,7 +146,7 @@ exports.updateStudent = async (req, res) => {
     ).select("-password -verificationToken -verificationTokenExpiry -__v");
 
     if (!student) return res.status(404).json({ error: "Student not found" });
-    console.log("✅ Student updated:", student.idNumber);
+    console.log("✅ Student/SSC updated:", student.idNumber);
     res.json({ message: "Student updated successfully", student });
   } catch (err) {
     console.error("🔥 Update student error:", err);
@@ -150,7 +162,7 @@ exports.deleteStudent = async (req, res) => {
     }).select("-password -verificationToken -verificationTokenExpiry -__v");
 
     if (!student) return res.status(404).json({ error: "Student not found" });
-    console.log("✅ Student deleted:", student.idNumber);
+    console.log("✅ Student/SSC deleted:", student.idNumber);
     res.json({ message: "Student deleted successfully", deletedStudent: { idNumber: student.idNumber, firstName: student.firstName, lastName: student.lastName } });
   } catch (err) {
     console.error("🔥 Delete student error:", err);
@@ -205,14 +217,17 @@ exports.removeFromSSC = async (req, res) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  OSS + SUPER  (same controller, different role filter)
+//  OSS ONLY  (super is excluded from list — super admin is the
+//  logged-in user and should not appear in the OSS tab)
 // ═══════════════════════════════════════════════════════════════
 
 exports.getOssUsers = async (req, res) => {
   try {
     const { page = 1, limit = 9999, search = "" } = req.query;
     const skip  = (parseInt(page) - 1) * parseInt(limit);
-    const query = { role: { $in: ["oss", "super"] } };
+
+    // ✅ FIXED: exclude "super" — super admin should not appear in OSS list
+    const query = { role: "oss" };
 
     if (search) {
       query.$or = [
@@ -248,9 +263,9 @@ exports.addOssUser = async (req, res) => {
     if (email && !validateEmail(email))          return res.status(400).json({ error: "Please provide a valid email address" });
     if (password && !validatePassword(password)) return res.status(400).json({ error: "Password must be at least 6 characters long" });
 
-    const validRoles = ["oss", "super"];
-    if (!validRoles.includes(role))
-      return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
+    // ✅ Only "oss" allowed — super admin cannot be added through this route
+    if (role !== "oss")
+      return res.status(400).json({ error: "Only OSS staff accounts can be created through this route." });
 
     const existingId = await User.findOne({ idNumber: Number(idNumber) });
     if (existingId) return res.status(400).json({ error: "User with this ID number already exists" });
@@ -266,7 +281,7 @@ exports.addOssUser = async (req, res) => {
       middleName: middleName.trim() || "",
       lastName:   lastName.trim(),
       age:        Number(age),
-      role,
+      role:       "oss",
       yearLevel:  "N/A",
       section:    "N/A",
       course:     "",
@@ -283,7 +298,7 @@ exports.addOssUser = async (req, res) => {
       .select("-password -qrCode -verificationToken -verificationTokenExpiry -__v").lean();
 
     console.log("✅ OSS user added:", created.idNumber);
-    res.status(201).json({ message: "User created successfully", user: created });
+    res.status(201).json({ message: "OSS staff created successfully", user: created });
   } catch (err) {
     console.error("🔥 Add OSS user error:", err);
     if (err.code === 11000) {
@@ -325,13 +340,14 @@ exports.updateOssUser = async (req, res) => {
       payload.password = await bcrypt.hash(req.body.password.trim(), 10);
     }
 
+    // ✅ Only update oss — never allow editing super account from this route
     const user = await User.findOneAndUpdate(
-      { idNumber: Number(idNumber), role: { $in: ["oss", "super"] } },
+      { idNumber: Number(idNumber), role: "oss" },
       payload,
       { new: true, runValidators: true }
     ).select("-password -qrCode -verificationToken -verificationTokenExpiry -__v");
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) return res.status(404).json({ error: "OSS user not found" });
     console.log("✅ OSS user updated:", user.idNumber);
     res.json({ message: "User updated successfully", user });
   } catch (err) {
@@ -346,12 +362,13 @@ exports.updateOssUser = async (req, res) => {
 
 exports.deleteOssUser = async (req, res) => {
   try {
+    // ✅ Only delete oss — never allow deleting super account from this route
     const user = await User.findOneAndDelete({
       idNumber: Number(req.params.idNumber),
-      role:     { $in: ["oss", "super"] },
+      role:     "oss",
     }).select("-password -qrCode -verificationToken -verificationTokenExpiry -__v");
 
-    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user) return res.status(404).json({ error: "OSS user not found" });
     console.log("✅ OSS user deleted:", user.idNumber);
     res.json({ message: "User deleted successfully", deletedUser: { idNumber: user.idNumber, firstName: user.firstName, lastName: user.lastName } });
   } catch (err) {
