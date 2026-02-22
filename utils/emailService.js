@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-// ✅ Resend SMTP — works on Render free tier
+// Resend SMTP - works on Render free tier
 const transporter = nodemailer.createTransport({
   host: "smtp.resend.com",
   port: 465,
@@ -11,12 +11,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ✅ Verify on startup
+// Verify on startup
 transporter.verify((error, success) => {
   if (error) {
-    console.error("❌ Email transporter error:", error.message);
+    console.error("Email transporter error:", error.message);
   } else {
-    console.log("✅ Resend SMTP ready — emails can be sent!");
+    console.log("Resend SMTP ready — emails can be sent!");
   }
 });
 
@@ -38,7 +38,7 @@ async function sendVerificationEmail(user, verificationToken) {
               <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1);">
                 <tr>
                   <td style="background:linear-gradient(135deg,#0B84FF,#0073E6);padding:40px 30px;text-align:center;">
-                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">🎉 Welcome to AttendSure!</h1>
+                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">Welcome to AttendSure!</h1>
                   </td>
                 </tr>
                 <tr>
@@ -52,7 +52,7 @@ async function sendVerificationEmail(user, verificationToken) {
                         <td align="center" style="padding:20px 0;">
                           <a href="${verificationLink}"
                              style="display:inline-block;background:linear-gradient(135deg,#0B84FF,#0073E6);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:600;">
-                            ✅ Verify Email Address
+                            Verify Email Address
                           </a>
                         </td>
                       </tr>
@@ -60,14 +60,14 @@ async function sendVerificationEmail(user, verificationToken) {
                     <p style="margin:20px 0 5px;color:#94A3B8;font-size:14px;">Or copy this link:</p>
                     <p style="margin:0;color:#0B84FF;font-size:14px;word-break:break-all;">${verificationLink}</p>
                     <div style="margin-top:30px;padding:20px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;">
-                      <p style="margin:0;color:#92400E;font-size:14px;">⚠️ <strong>Important:</strong> This link expires in 1 hour.</p>
+                      <p style="margin:0;color:#92400E;font-size:14px;"><strong>Important:</strong> This link expires in 1 hour.</p>
                     </div>
-                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you didn't create this account, you can safely ignore this email.</p>
+                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you did not create this account, you can safely ignore this email.</p>
                   </td>
                 </tr>
                 <tr>
                   <td style="background:#F8FAFC;padding:30px;text-align:center;border-top:1px solid #E2E8F0;">
-                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal © 2025 — Automated email. Do not reply.</p>
+                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal &copy; 2025 &mdash; Automated email. Do not reply.</p>
                   </td>
                 </tr>
               </table>
@@ -78,11 +78,11 @@ async function sendVerificationEmail(user, verificationToken) {
       `,
     });
 
-    console.log("✅ Verification email sent to:", user.email, "| MessageID:", info.messageId);
+    console.log("Verification email sent to:", user.email, "| MessageID:", info.messageId);
     return { success: true };
 
   } catch (err) {
-    console.error("❌ Failed to send verification email:", err.message);
+    console.error("Failed to send verification email:", err.message);
     throw err;
   }
 }
@@ -105,7 +105,7 @@ async function sendResendVerificationEmail(user, verificationToken) {
               <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1);">
                 <tr>
                   <td style="background:linear-gradient(135deg,#0B84FF,#0073E6);padding:40px 30px;text-align:center;">
-                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">🔁 Verification Link Resent</h1>
+                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">Verification Link Resent</h1>
                   </td>
                 </tr>
                 <tr>
@@ -119,7 +119,7 @@ async function sendResendVerificationEmail(user, verificationToken) {
                         <td align="center" style="padding:20px 0;">
                           <a href="${verificationLink}"
                              style="display:inline-block;background:linear-gradient(135deg,#0B84FF,#0073E6);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:600;">
-                            ✅ Verify Email Address
+                            Verify Email Address
                           </a>
                         </td>
                       </tr>
@@ -127,14 +127,14 @@ async function sendResendVerificationEmail(user, verificationToken) {
                     <p style="margin:20px 0 5px;color:#94A3B8;font-size:14px;">Or copy this link:</p>
                     <p style="margin:0;color:#0B84FF;font-size:14px;word-break:break-all;">${verificationLink}</p>
                     <div style="margin-top:30px;padding:20px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;">
-                      <p style="margin:0;color:#92400E;font-size:14px;">⚠️ <strong>Important:</strong> This link expires in 1 hour.</p>
+                      <p style="margin:0;color:#92400E;font-size:14px;"><strong>Important:</strong> This link expires in 1 hour.</p>
                     </div>
-                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you didn't request this, ignore this email.</p>
+                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you did not request this, ignore this email.</p>
                   </td>
                 </tr>
                 <tr>
                   <td style="background:#F8FAFC;padding:30px;text-align:center;border-top:1px solid #E2E8F0;">
-                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal © 2025 — Automated email. Do not reply.</p>
+                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal &copy; 2025 &mdash; Automated email. Do not reply.</p>
                   </td>
                 </tr>
               </table>
@@ -145,11 +145,11 @@ async function sendResendVerificationEmail(user, verificationToken) {
       `,
     });
 
-    console.log("✅ Resend verification email sent to:", user.email, "| MessageID:", info.messageId);
+    console.log("Resend verification email sent to:", user.email, "| MessageID:", info.messageId);
     return { success: true };
 
   } catch (err) {
-    console.error("❌ Failed to resend verification email:", err.message);
+    console.error("Failed to resend verification email:", err.message);
     throw err;
   }
 }
