@@ -22,6 +22,7 @@ router.post("/", async (req, res) => {
     }
 
     console.log("✅ User found:", user.firstName, user.lastName);
+    console.log("📊 isEmailVerified:", user.isEmailVerified);
 
     // ⚠️ Already verified
     if (user.isEmailVerified) {
@@ -35,12 +36,18 @@ router.post("/", async (req, res) => {
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationTokenExpiry = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
+    // ✅ Use updateOne — bypasses mongoose validation (no required field errors)
     await User.updateOne(
       { _id: user._id },
-      { $set: { verificationToken, verificationTokenExpiry } }
+      {
+        $set: {
+          verificationToken,
+          verificationTokenExpiry,
+        },
+      }
     );
 
-    console.log("✅ New token saved");
+    console.log("✅ New token saved via updateOne");
 
     // ✅ Send email
     try {
