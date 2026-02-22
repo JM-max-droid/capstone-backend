@@ -1,157 +1,41 @@
-const nodemailer = require("nodemailer");
+const https = require("https");
 
-// Resend SMTP - works on Render free tier
-const transporter = nodemailer.createTransport({
-  host: "smtp.resend.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: "resend",
-    pass: process.env.RESEND_API_KEY,
-  },
-});
-
-// Verify on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("Email transporter error:", error.message);
-  } else {
-    console.log("Resend SMTP ready — emails can be sent!");
-  }
-});
+function sendEmail({ to, subject, html }) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ from: "AttendSure <onboarding@resend.dev>", to: [to], subject, html });
+    const options = {
+      hostname: "api.resend.com", path: "/emails", method: "POST",
+      headers: { "Authorization": "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+    };
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (res.statusCode >= 200 && res.statusCode < 300) { resolve(parsed); }
+          else { reject(new Error("Resend error: " + data)); }
+        } catch(e) { reject(e); }
+      });
+    });
+    req.on("error", reject); req.write(body); req.end();
+  });
+}
 
 async function sendVerificationEmail(user, verificationToken) {
-  const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
-
-  try {
-    const info = await transporter.sendMail({
-      from: "AttendSure <onboarding@resend.dev>",
-      to: user.email,
-      subject: "Verify Your Email - AttendSure Portal",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-        <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">
-            <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1);">
-                <tr>
-                  <td style="background:linear-gradient(135deg,#0B84FF,#0073E6);padding:40px 30px;text-align:center;">
-                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">Welcome to AttendSure!</h1>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:40px 30px;">
-                    <h2 style="margin:0 0 20px;color:#1E293B;font-size:22px;">Hi ${user.firstName}!</h2>
-                    <p style="margin:0 0 20px;color:#64748B;font-size:16px;line-height:1.6;">
-                      Thank you for registering! Please verify your email to complete your registration.
-                    </p>
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td align="center" style="padding:20px 0;">
-                          <a href="${verificationLink}"
-                             style="display:inline-block;background:linear-gradient(135deg,#0B84FF,#0073E6);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:600;">
-                            Verify Email Address
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                    <p style="margin:20px 0 5px;color:#94A3B8;font-size:14px;">Or copy this link:</p>
-                    <p style="margin:0;color:#0B84FF;font-size:14px;word-break:break-all;">${verificationLink}</p>
-                    <div style="margin-top:30px;padding:20px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;">
-                      <p style="margin:0;color:#92400E;font-size:14px;"><strong>Important:</strong> This link expires in 1 hour.</p>
-                    </div>
-                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you did not create this account, you can safely ignore this email.</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="background:#F8FAFC;padding:30px;text-align:center;border-top:1px solid #E2E8F0;">
-                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal &copy; 2025 &mdash; Automated email. Do not reply.</p>
-                  </td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-        </html>
-      `,
-    });
-
-    console.log("Verification email sent to:", user.email, "| MessageID:", info.messageId);
-    return { success: true };
-
-  } catch (err) {
-    console.error("Failed to send verification email:", err.message);
-    throw err;
-  }
+  const link = "https://capstone-backend-hk0h.onrender.com/api/register/verify?token=" + verificationToken;
+  const html = "<h2>Hi " + user.firstName + "!</h2><p>Click to verify your email:</p><a href='" + link + "' style='background:#0B84FF;color:#fff;padding:16px 40px;border-radius:12px;text-decoration:none;display:inline-block;'>Verify Email Address</a><p>Or copy: " + link + "</p><p><strong>Expires in 1 hour.</strong></p>";
+  const result = await sendEmail({ to: user.email, subject: "Verify Your Email - AttendSure Portal", html });
+  console.log("Verification email sent to:", user.email, "| ID:", result.id);
+  return { success: true };
 }
 
 async function sendResendVerificationEmail(user, verificationToken) {
-  const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
-
-  try {
-    const info = await transporter.sendMail({
-      from: "AttendSure <onboarding@resend.dev>",
-      to: user.email,
-      subject: "Resend: Verify Your Email - AttendSure Portal",
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-        <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">
-            <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.1);">
-                <tr>
-                  <td style="background:linear-gradient(135deg,#0B84FF,#0073E6);padding:40px 30px;text-align:center;">
-                    <h1 style="margin:0;color:#fff;font-size:28px;font-weight:700;">Verification Link Resent</h1>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:40px 30px;">
-                    <h2 style="margin:0 0 20px;color:#1E293B;font-size:22px;">Hi ${user.firstName}!</h2>
-                    <p style="margin:0 0 30px;color:#64748B;font-size:16px;line-height:1.6;">
-                      You requested a new verification link. Click the button below:
-                    </p>
-                    <table width="100%" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td align="center" style="padding:20px 0;">
-                          <a href="${verificationLink}"
-                             style="display:inline-block;background:linear-gradient(135deg,#0B84FF,#0073E6);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:600;">
-                            Verify Email Address
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-                    <p style="margin:20px 0 5px;color:#94A3B8;font-size:14px;">Or copy this link:</p>
-                    <p style="margin:0;color:#0B84FF;font-size:14px;word-break:break-all;">${verificationLink}</p>
-                    <div style="margin-top:30px;padding:20px;background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;">
-                      <p style="margin:0;color:#92400E;font-size:14px;"><strong>Important:</strong> This link expires in 1 hour.</p>
-                    </div>
-                    <p style="margin:20px 0 0;color:#64748B;font-size:14px;">If you did not request this, ignore this email.</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="background:#F8FAFC;padding:30px;text-align:center;border-top:1px solid #E2E8F0;">
-                    <p style="margin:0;color:#94A3B8;font-size:13px;">AttendSure Portal &copy; 2025 &mdash; Automated email. Do not reply.</p>
-                  </td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-        </html>
-      `,
-    });
-
-    console.log("Resend verification email sent to:", user.email, "| MessageID:", info.messageId);
-    return { success: true };
-
-  } catch (err) {
-    console.error("Failed to resend verification email:", err.message);
-    throw err;
-  }
+  const link = "https://capstone-backend-hk0h.onrender.com/api/register/verify?token=" + verificationToken;
+  const html = "<h2>Hi " + user.firstName + "!</h2><p>New verification link:</p><a href='" + link + "' style='background:#0B84FF;color:#fff;padding:16px 40px;border-radius:12px;text-decoration:none;display:inline-block;'>Verify Email Address</a><p>Or copy: " + link + "</p><p><strong>Expires in 1 hour.</strong></p>";
+  const result = await sendEmail({ to: user.email, subject: "Resend: Verify Your Email - AttendSure Portal", html });
+  console.log("Resend email sent to:", user.email, "| ID:", result.id);
+  return { success: true };
 }
 
 module.exports = { sendVerificationEmail, sendResendVerificationEmail };
