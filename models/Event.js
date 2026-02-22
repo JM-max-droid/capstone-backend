@@ -62,7 +62,7 @@ const eventSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ─── Pre-validate: date + AM/PM + time order + timeout checks ────────────────
+// ─── Pre-validate: date + AM/PM + same-time + time order + timeout checks ─────
 eventSchema.pre("validate", function (next) {
   const errors = [];
 
@@ -86,7 +86,11 @@ eventSchema.pre("validate", function (next) {
     if (m.timeout && !isAM(m.timeout))
       errors.push("Morning timeout must be AM (12:00 AM – 11:59 AM).");
     if (m.start && m.end) {
-      if (parseTimeToMinutes(m.start) >= parseTimeToMinutes(m.end))
+      const mS = parseTimeToMinutes(m.start);
+      const mE = parseTimeToMinutes(m.end);
+      if (mS === mE)
+        errors.push("Morning session start and end time cannot be the same.");
+      else if (mS > mE)
         errors.push("Morning start time must be earlier than end time.");
     }
     if (m.start && m.end && m.timeout) {
@@ -108,7 +112,11 @@ eventSchema.pre("validate", function (next) {
     if (a.timeout && !isPM(a.timeout))
       errors.push("Afternoon timeout must be PM (12:00 PM – 11:59 PM).");
     if (a.start && a.end) {
-      if (parseTimeToMinutes(a.start) >= parseTimeToMinutes(a.end))
+      const aS = parseTimeToMinutes(a.start);
+      const aE = parseTimeToMinutes(a.end);
+      if (aS === aE)
+        errors.push("Afternoon session start and end time cannot be the same.");
+      else if (aS > aE)
         errors.push("Afternoon start time must be earlier than end time.");
     }
     if (a.start && a.end && a.timeout) {

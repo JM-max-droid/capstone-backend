@@ -32,9 +32,13 @@ const validateSessionTimes = ({
   if (morningTimeout && !isAM(morningTimeout))
     return "Morning timeout must be AM (12:00 AM – 11:59 AM).";
 
-  // ── MORNING: start < end ─────────────────────────────────────────────────
+  // ── MORNING: start ≠ end, start < end ────────────────────────────────────
   if (morningStart && morningEnd) {
-    if (parseTimeToMinutes(morningStart) >= parseTimeToMinutes(morningEnd))
+    const mS = parseTimeToMinutes(morningStart);
+    const mE = parseTimeToMinutes(morningEnd);
+    if (mS === mE)
+      return "Morning session start and end time cannot be the same.";
+    if (mS > mE)
       return "Morning start time must be earlier than end time.";
   }
 
@@ -55,9 +59,13 @@ const validateSessionTimes = ({
   if (afternoonTimeout && !isPM(afternoonTimeout))
     return "Afternoon timeout must be PM (12:00 PM – 11:59 PM).";
 
-  // ── AFTERNOON: start < end ───────────────────────────────────────────────
+  // ── AFTERNOON: start ≠ end, start < end ──────────────────────────────────
   if (afternoonStart && afternoonEnd) {
-    if (parseTimeToMinutes(afternoonStart) >= parseTimeToMinutes(afternoonEnd))
+    const aS = parseTimeToMinutes(afternoonStart);
+    const aE = parseTimeToMinutes(afternoonEnd);
+    if (aS === aE)
+      return "Afternoon session start and end time cannot be the same.";
+    if (aS > aE)
       return "Afternoon start time must be earlier than end time.";
   }
 
@@ -120,7 +128,7 @@ const createEvent = async (req, res) => {
     const dateError = validateDates(startDate, endDate);
     if (dateError) return res.status(400).json({ error: dateError });
 
-    // ── AM/PM + time order + timeout validation ──────────────────────────────
+    // ── AM/PM + time order + same-time + timeout validation ──────────────────
     const timeError = validateSessionTimes({
       morningStart: morningAttendanceStart,
       morningEnd: morningAttendanceEnd,
@@ -178,7 +186,7 @@ const updateEvent = async (req, res) => {
     const aEnd     = req.body.afternoonAttendanceEnd   || event.afternoonAttendance.end;
     const aTimeout = req.body.afternoonTimeout         || event.afternoonAttendance.timeout;
 
-    // ── AM/PM + time order + timeout validation ──────────────────────────────
+    // ── AM/PM + time order + same-time + timeout validation ──────────────────
     const timeError = validateSessionTimes({
       morningStart: mStart, morningEnd: mEnd, morningTimeout: mTimeout,
       afternoonStart: aStart, afternoonEnd: aEnd, afternoonTimeout: aTimeout,
