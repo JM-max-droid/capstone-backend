@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const connectDB = require("./db");
-const nodemailer = require("nodemailer");
+const https = require("https");
 
 // ===============================
 // ✅ Import Routes
@@ -30,10 +30,8 @@ const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
 
-// 🆕 YEAR-END ROUTE
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
-// 🆕 SUPERADMIN ROUTES
 const superadminUserRoute        = require("./routes/superadmin/userRoute");
 const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute");
 
@@ -42,7 +40,6 @@ const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute
 // ===============================
 const app = express();
 
-// ✅ FIX: Trust proxy for Render deployment
 app.set("trust proxy", 1);
 
 app.use(cors({
@@ -60,36 +57,21 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 connectDB();
 
 // ===============================
-// ✅ Nodemailer transporter (used for test-email endpoint)
-// ===============================
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// ===============================
-// ✅ Routes - Organized & Correct
+// ✅ Routes
 // ===============================
 
-// 1️⃣ Registration sub-routes (most specific first)
 app.use("/api/register/qrcode", qrcodeRoute);
 app.use("/api/register/photo", realtimePhotoRoute);
 app.use("/api/register/verify", verificationRoute);
 app.use("/api/register/resend-verification", resendVerificationRoute);
 app.use("/api/register", registerRoute);
 
-// 2️⃣ OSS sub-routes before main /api/oss
 app.use("/api/oss/notifications", notificationRoute);
 
-// 3️⃣ Attendance routes (MOST SPECIFIC FIRST!)
 app.use("/api/student/attendance", studentAttendanceRoute);
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
-// 4️⃣ Student / Scanner / SSC user routes
 app.use("/api/scanner", scannerLookupRoute);
 app.use("/api/student/user", studentUserRoute);
 app.use("/api/student", studentRoute);
@@ -97,20 +79,16 @@ app.use("/api/ssc/user", sscUserRoute);
 app.use("/api/ssc/students", sscStudentsRoute);
 app.use("/api/users", ossUserRoute);
 
-// 5️⃣ YEAR-END routes (BEFORE /api/oss to avoid conflict)
 app.use("/api/year-end", yearEndRoute);
 
-// 6️⃣ SUPERADMIN routes
 app.use("/api/superadmin/users", superadminUserProfileRoute);
 app.use("/api/superadmin", superadminUserRoute);
 
-// 7️⃣ Other specific routes
 app.use("/api/lookup", lookupRoute);
 app.use("/api/login", loginRoute);
 app.use("/api/user", userRoute);
 app.use("/api/events", eventRoute);
 
-// 8️⃣ General OSS routes (last among API routes)
 app.use("/api/oss", ossRoute);
 
 // ===============================
@@ -118,7 +96,7 @@ app.use("/api/oss", ossRoute);
 // ===============================
 app.get("/", (req, res) => {
   res.json({
-    message: "🚀 AttendSure Backend API is running!",
+    message: "AttendSure Backend API is running!",
     endpoints: {
       register: "POST /api/register",
       verify: "GET /api/register/verify?token=xxx",
@@ -133,44 +111,67 @@ app.get("/", (req, res) => {
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
-      superadminUpdateInfo: "PUT /api/superadmin/users/update-info",
-      superadminUpdatePassword: "PUT /api/superadmin/users/update-password",
-      superadminUpdatePicture: "PUT /api/superadmin/users/update-picture",
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
-      yearEndManualAction: "POST /api/year-end/manual-action",
-      yearEndAcademicYears: "GET /api/year-end/academic-years",
-      yearEndMigrate: "POST /api/year-end/migrate",
     },
   });
 });
 
 // ===============================
-// ✅ Test email endpoint
+// ✅ Test email endpoint (using Resend HTTP API)
 // ===============================
 app.post("/api/test-email", async (req, res) => {
   const { to } = req.body;
   if (!to) return res.status(400).json({ error: "Missing recipient email" });
 
   try {
-    await transporter.sendMail({
-      from: `"AttendSure" <${process.env.EMAIL_USER}>`,
-      to,
+    const body = JSON.stringify({
+      from: "AttendSure <onboarding@resend.dev>",
+      to: [to],
       subject: "Test Email from AttendSure",
-      text: "This is a test email. Your Nodemailer setup works!",
+      html: "<p>This is a test email. Your email setup works!</p>",
     });
-    res.json({ message: "✅ Test email sent successfully" });
+
+    const result = await new Promise((resolve, reject) => {
+      const options = {
+        hostname: "api.resend.com",
+        path: "/emails",
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + process.env.RESEND_API_KEY,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      };
+
+      const req2 = https.request(options, (r) => {
+        let data = "";
+        r.on("data", (chunk) => { data += chunk; });
+        r.on("end", () => {
+          if (r.statusCode >= 200 && r.statusCode < 300) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error("Resend error: " + data));
+          }
+        });
+      });
+      req2.on("error", reject);
+      req2.write(body);
+      req2.end();
+    });
+
+    res.json({ message: "Test email sent successfully", id: result.id });
   } catch (error) {
-    console.error("❌ Error sending test email:", error);
+    console.error("Error sending test email:", error);
     res.status(500).json({ error: "Error sending email", details: error.message });
   }
 });
 
 // ===============================
-// ✅ 404 handler (MUST BE LAST)
+// ✅ 404 handler
 // ===============================
 app.use((req, res) => {
-  console.log("❌ 404 - Route not found:", req.method, req.path);
+  console.log("404 - Route not found:", req.method, req.path);
   res.status(404).json({
     error: "Route not found",
     path: req.path,
@@ -179,10 +180,10 @@ app.use((req, res) => {
 });
 
 // ===============================
-// ✅ Global error handler (ABSOLUTELY LAST)
+// ✅ Global error handler
 // ===============================
 app.use((err, req, res, next) => {
-  console.error("🔥 Global Error:", err.stack);
+  console.error("Global Error:", err.stack);
   res.status(500).json({ error: "Internal Server Error" });
 });
 
