@@ -1,37 +1,15 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-// ✅ Use port 587 with STARTTLS — works on Render free tier
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// ✅ Verify on startup
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("❌ Email transporter error:", error.message);
-  } else {
-    console.log("✅ Nodemailer ready — emails can be sent");
-  }
-});
+console.log("✅ Resend email service initialized");
 
 async function sendVerificationEmail(user, verificationToken) {
   const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"AttendSure" <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: "AttendSure <onboarding@resend.dev>",
       to: user.email,
       subject: "Verify Your Email - AttendSure Portal",
       html: `
@@ -84,12 +62,17 @@ async function sendVerificationEmail(user, verificationToken) {
       `,
     });
 
-    console.log("✅ Verification email sent to:", user.email, "| MessageID:", info.messageId);
+    if (error) {
+      console.error("❌ Resend error (sendVerificationEmail):", error);
+      throw new Error(error.message);
+    }
+
+    console.log("✅ Verification email sent to:", user.email, "| ID:", data.id);
     return { success: true };
 
-  } catch (error) {
-    console.error("❌ Failed to send verification email:", error.message);
-    throw error;
+  } catch (err) {
+    console.error("❌ Failed to send verification email:", err.message);
+    throw err;
   }
 }
 
@@ -97,8 +80,8 @@ async function sendResendVerificationEmail(user, verificationToken) {
   const verificationLink = `https://capstone-backend-hk0h.onrender.com/api/register/verify?token=${verificationToken}`;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"AttendSure" <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: "AttendSure <onboarding@resend.dev>",
       to: user.email,
       subject: "Resend: Verify Your Email - AttendSure Portal",
       html: `
@@ -151,12 +134,17 @@ async function sendResendVerificationEmail(user, verificationToken) {
       `,
     });
 
-    console.log("✅ Resend verification email sent to:", user.email, "| MessageID:", info.messageId);
+    if (error) {
+      console.error("❌ Resend error (sendResendVerificationEmail):", error);
+      throw new Error(error.message);
+    }
+
+    console.log("✅ Resend verification email sent to:", user.email, "| ID:", data.id);
     return { success: true };
 
-  } catch (error) {
-    console.error("❌ Failed to resend verification email:", error.message);
-    throw error;
+  } catch (err) {
+    console.error("❌ Failed to resend verification email:", err.message);
+    throw err;
   }
 }
 
