@@ -4,7 +4,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ✅ POST /api/login
 router.post("/", async (req, res) => {
   console.log("\n🔵 ========== LOGIN REQUEST ==========");
   console.log("📧 Email:", req.body.email);
@@ -31,20 +30,6 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // ✅ CHECK EMAIL VERIFICATION
-    // !== true catches: undefined (old accounts), false (new unverified accounts)
-    if (user.isEmailVerified !== true) {
-      console.log("❌ Email not verified:", normalizedEmail);
-      return res.status(403).json({
-        error: "Email not verified. Please check your inbox and verify your email first.",
-        requiresVerification: true,
-        email: normalizedEmail,
-      });
-    }
-
-    console.log("✅ Email verified!");
-
-    // 🔹 Compare password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ error: "Invalid email or password" });
@@ -52,7 +37,6 @@ router.post("/", async (req, res) => {
 
     console.log("✅ Password matched!");
 
-    // 🔹 Generate JWT
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
       process.env.JWT_SECRET || "your_super_secret_key_here",

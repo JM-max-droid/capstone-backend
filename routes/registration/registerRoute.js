@@ -1,11 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const User = require("../../models/User");
-const { sendVerificationEmail } = require("../../utils/emailService");
 
-// ✅ POST /api/register
 router.post("/", async (req, res) => {
   console.log("\n🔵 ========== REGISTRATION REQUEST ==========");
   console.log("📧 Request body:", {
@@ -42,42 +39,24 @@ router.post("/", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenExpiry = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
-
-    // ✅ Use updateOne to bypass pre-save hook (avoid double hashing)
     await User.updateOne(
       { _id: user._id },
       {
         $set: {
           email: email.trim().toLowerCase(),
           password: hashedPassword,
-          isEmailVerified: false,
-          verificationToken,
-          verificationTokenExpiry,
+          isEmailVerified: true,
           ...(photoURL && { photoURL }),
           ...(qrCode && { qrCode }),
         },
       }
     );
 
-    console.log("✅ User saved with verification token");
-
-    const updatedUser = await User.findById(user._id);
-
-    // ✅ Send verification email
-    try {
-      await sendVerificationEmail(updatedUser, verificationToken);
-      console.log("✅ Verification email sent to:", updatedUser.email);
-    } catch (emailError) {
-      console.error("❌ Failed to send verification email:", emailError.message);
-    }
+    console.log("✅ User registered successfully");
 
     res.status(200).json({
       success: true,
-      message: "Registration successful! Please check your email to verify your account.",
-      requiresVerification: true,
+      message: "Registration successful! You can now login.",
       email: email.trim().toLowerCase(),
     });
 
