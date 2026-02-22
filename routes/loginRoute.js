@@ -31,8 +31,9 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // ✅ CHECK EMAIL VERIFICATION (isEmailVerified — correct field from User model)
-    if (!user.isEmailVerified) {
+    // ✅ CHECK EMAIL VERIFICATION
+    // !== true catches: undefined (old accounts), false (new unverified accounts)
+    if (user.isEmailVerified !== true) {
       console.log("❌ Email not verified:", normalizedEmail);
       return res.status(403).json({
         error: "Email not verified. Please check your inbox and verify your email first.",
