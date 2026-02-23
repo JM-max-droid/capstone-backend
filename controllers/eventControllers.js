@@ -42,13 +42,12 @@ const validateSessionTimes = ({
       return "Morning start time must be earlier than end time.";
   }
 
-  // ── MORNING: timeout inside [start, end] ─────────────────────────────────
-  if (morningStart && morningEnd && morningTimeout) {
-    const mS = parseTimeToMinutes(morningStart);
+  // ── MORNING: timeout must be AFTER end time ───────────────────────────────
+  if (morningEnd && morningTimeout) {
     const mE = parseTimeToMinutes(morningEnd);
     const mT = parseTimeToMinutes(morningTimeout);
-    if (mT <= mS || mT > mE)
-      return "Morning timeout must be within the session start and end times.";
+    if (mT <= mE)
+      return "Morning timeout must be after the session end time.";
   }
 
   // ── AFTERNOON: all must be PM ────────────────────────────────────────────
@@ -69,13 +68,12 @@ const validateSessionTimes = ({
       return "Afternoon start time must be earlier than end time.";
   }
 
-  // ── AFTERNOON: timeout inside [start, end] ───────────────────────────────
-  if (afternoonStart && afternoonEnd && afternoonTimeout) {
-    const aS = parseTimeToMinutes(afternoonStart);
+  // ── AFTERNOON: timeout must be AFTER end time ─────────────────────────────
+  if (afternoonEnd && afternoonTimeout) {
     const aE = parseTimeToMinutes(afternoonEnd);
     const aT = parseTimeToMinutes(afternoonTimeout);
-    if (aT <= aS || aT > aE)
-      return "Afternoon timeout must be within the session start and end times.";
+    if (aT <= aE)
+      return "Afternoon timeout must be after the session end time.";
   }
 
   return null;

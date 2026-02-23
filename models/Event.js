@@ -93,12 +93,12 @@ eventSchema.pre("validate", function (next) {
       else if (mS > mE)
         errors.push("Morning start time must be earlier than end time.");
     }
-    if (m.start && m.end && m.timeout) {
-      const mS = parseTimeToMinutes(m.start);
+    // ✅ Timeout must be AFTER end time
+    if (m.end && m.timeout) {
       const mE = parseTimeToMinutes(m.end);
       const mT = parseTimeToMinutes(m.timeout);
-      if (mT <= mS || mT > mE)
-        errors.push("Morning timeout must be within the session start and end times.");
+      if (mT <= mE)
+        errors.push("Morning timeout must be after the session end time.");
     }
   }
 
@@ -119,12 +119,12 @@ eventSchema.pre("validate", function (next) {
       else if (aS > aE)
         errors.push("Afternoon start time must be earlier than end time.");
     }
-    if (a.start && a.end && a.timeout) {
-      const aS = parseTimeToMinutes(a.start);
+    // ✅ Timeout must be AFTER end time
+    if (a.end && a.timeout) {
       const aE = parseTimeToMinutes(a.end);
       const aT = parseTimeToMinutes(a.timeout);
-      if (aT <= aS || aT > aE)
-        errors.push("Afternoon timeout must be within the session start and end times.");
+      if (aT <= aE)
+        errors.push("Afternoon timeout must be after the session end time.");
     }
   }
 

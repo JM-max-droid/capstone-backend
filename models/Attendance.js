@@ -26,21 +26,30 @@ const AttendanceSchema = new mongoose.Schema(
     },
 
     // 🌅 MORNING
-    morningIn: String,
-    morningOut: String,
+    morningIn:     String,
+    morningOut:    String,
     morningStatus: {
       type: String,
       enum: ["present", "late", "absent"],
       default: "absent",
     },
+    // e.g. "Early arrival", "Left with parents", "Early dismissal"
+    morningNote: {
+      type: String,
+      default: null,
+    },
 
     // 🌇 AFTERNOON
-    afternoonIn: String,
-    afternoonOut: String,
+    afternoonIn:     String,
+    afternoonOut:    String,
     afternoonStatus: {
       type: String,
       enum: ["present", "late", "absent"],
       default: "absent",
+    },
+    afternoonNote: {
+      type: String,
+      default: null,
     },
   },
   { timestamps: true }

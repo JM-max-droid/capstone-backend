@@ -1,8 +1,5 @@
 const express = require("express");
 const router = express.Router();
-
-console.log("✅ Loading OSS Attendance routes...");
-
 // 👉 IMPORT CONTROLLERS
 const {
   createAttendance,
