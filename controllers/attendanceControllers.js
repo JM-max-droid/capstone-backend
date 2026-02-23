@@ -123,23 +123,41 @@ const getPHTTimeString = () => {
 };
 
 // ============================== 
-// ✅ UPDATED: Get session info with EARLY ATTENDANCE support
-//
-// MORNING TIME-IN:
-//   - Available from 12:00 AM (midnight) up to end time + allotted grace
-//   - Status = "present" if before/during window, "late" if after end + grace
-//
-// AFTERNOON TIME-IN:
-//   - Available from 12:00 PM (noon) up to end time + allotted grace
-//   - Status = "present" if before/during window, "late" if after end + grace
-//
-// MORNING TIME-OUT:
-//   - Available from timeout time up to timeout + 60 min (existing)
-//   - EARLY timeout: also available from 12:00 AM up to timeout start (isEarlyOut = true)
-//
-// AFTERNOON TIME-OUT:
-//   - Available from timeout time up to timeout + 60 min (existing)
-//   - EARLY timeout: also available from 12:00 PM up to timeout start (isEarlyOut = true)
+// ✅ NEW: Check if all attendance windows for an event have fully ended.
+// A window is "ended" when:
+//   - Time-in:  current time > end + allottedTime
+//   - Time-out: current time > timeout + 60 min
+// Returns true if every single window has closed.
+// ============================== 
+const areAllWindowsClosed = (event) => {
+  const currentMinutes = getPHTMinutes();
+  let latestWindowEnd = -1;
+
+  if (event.morningAttendance?.end) {
+    const end = parseTime(event.morningAttendance.end);
+    const allotted = event.morningAttendance?.allottedTime || 30;
+    if (end) latestWindowEnd = Math.max(latestWindowEnd, (end.hours * 60 + end.minutes) + allotted);
+  }
+  if (event.morningAttendance?.timeout) {
+    const t = parseTime(event.morningAttendance.timeout);
+    if (t) latestWindowEnd = Math.max(latestWindowEnd, (t.hours * 60 + t.minutes) + 60);
+  }
+  if (event.afternoonAttendance?.end) {
+    const end = parseTime(event.afternoonAttendance.end);
+    const allotted = event.afternoonAttendance?.allottedTime || 30;
+    if (end) latestWindowEnd = Math.max(latestWindowEnd, (end.hours * 60 + end.minutes) + allotted);
+  }
+  if (event.afternoonAttendance?.timeout) {
+    const t = parseTime(event.afternoonAttendance.timeout);
+    if (t) latestWindowEnd = Math.max(latestWindowEnd, (t.hours * 60 + t.minutes) + 60);
+  }
+
+  if (latestWindowEnd === -1) return false;
+  return currentMinutes > latestWindowEnd;
+};
+
+// ============================== 
+// ✅ Get session info with EARLY ATTENDANCE support
 // ============================== 
 const getSessionInfo = (event) => {
   try {
@@ -159,9 +177,6 @@ const getSessionInfo = (event) => {
         const allotted  = event.morningAttendance.allottedTime || 30;
         const lateLimit = endMin + allotted;
 
-        // EARLY: midnight (0) up to end of window
-        // ON TIME: start up to end
-        // LATE: end up to lateLimit
         if (currentMinutes >= 0 && currentMinutes <= lateLimit) {
           let status = "present";
           if (currentMinutes > endMin) status = "late";
@@ -190,9 +205,7 @@ const getSessionInfo = (event) => {
         const timeoutMin = timeout.hours * 60 + timeout.minutes;
         const timeoutEnd = timeoutMin + 60;
 
-        // EARLY timeout: midnight up to before timeout window opens
-        const isEarlyOut = currentMinutes >= 0 && currentMinutes < timeoutMin;
-        // NORMAL timeout window
+        const isEarlyOut  = currentMinutes >= 0 && currentMinutes < timeoutMin;
         const isNormalOut = currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd;
 
         if (isEarlyOut || isNormalOut) {
@@ -222,8 +235,7 @@ const getSessionInfo = (event) => {
         const allotted  = event.afternoonAttendance.allottedTime || 30;
         const lateLimit = endMin + allotted;
 
-        // EARLY afternoon: noon (720) up to end of window
-        const noonMin = 12 * 60; // 12:00 PM
+        const noonMin = 12 * 60;
         if (currentMinutes >= noonMin && currentMinutes <= lateLimit) {
           let status = "present";
           if (currentMinutes > endMin) status = "late";
@@ -253,9 +265,7 @@ const getSessionInfo = (event) => {
         const timeoutEnd = timeoutMin + 60;
         const noonMin    = 12 * 60;
 
-        // EARLY timeout: noon up to before timeout window opens
-        const isEarlyOut = currentMinutes >= noonMin && currentMinutes < timeoutMin;
-        // NORMAL timeout window
+        const isEarlyOut  = currentMinutes >= noonMin && currentMinutes < timeoutMin;
         const isNormalOut = currentMinutes >= timeoutMin && currentMinutes <= timeoutEnd;
 
         if (isEarlyOut || isNormalOut) {
@@ -311,6 +321,17 @@ const createAttendance = async (req, res) => {
     const currentTime = getPHTTimeString();
 
     console.log(`⏰ PHT time: ${currentTime}, date: ${today}`);
+
+    // ── ✅ NEW: Check if ALL attendance windows for today have already closed ──
+    // This fires before getSessionInfo so we can return a dedicated error code
+    // that the frontend can display a specific "attendance closed" alert for.
+    if (areAllWindowsClosed(event)) {
+      return res.status(410).json({
+        error: "ATTENDANCE_CLOSED",
+        message: "All attendance windows for today have ended. The time-in and time-out periods, including the allotted grace time, have already passed. No further attendance can be recorded for this event.",
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const sessions = getSessionInfo(event);
 
