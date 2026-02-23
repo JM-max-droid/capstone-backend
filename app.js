@@ -18,6 +18,7 @@ const qrcodeRoute = require("./routes/registration/qrcodeRoute");
 const userRoute = require("./routes/student/userRoute");
 const studentRoute = require("./routes/oss/studentRoute");
 const studentAttendanceRoute = require("./routes/student/attendanceRoute");
+const studentEventRoute = require("./routes/student/eventRoute"); // ✅ NEW
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute");
@@ -69,6 +70,7 @@ app.use("/api/register", registerRoute);
 app.use("/api/oss/notifications", notificationRoute);
 
 app.use("/api/student/attendance", studentAttendanceRoute);
+app.use("/api/student/events", studentEventRoute); // ✅ NEW — must be before /api/student
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
@@ -104,6 +106,7 @@ app.get("/", (req, res) => {
       login: "POST /api/login",
       scanner: "GET /api/scanner/:idNumber",
       studentAttendance: "GET /api/student/attendance?userId=xxx",
+      studentEvents: "GET /api/student/events", // ✅ NEW
       sscAttendance: "POST /api/ssc/attendance",
       sscUser: "GET /api/ssc/user?idNumber=xxx",
       sscStudents: "GET /api/ssc/students",
