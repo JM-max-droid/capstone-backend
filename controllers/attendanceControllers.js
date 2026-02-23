@@ -123,11 +123,7 @@ const getPHTTimeString = () => {
 };
 
 // ============================== 
-// ✅ NEW: Check if all attendance windows for an event have fully ended.
-// A window is "ended" when:
-//   - Time-in:  current time > end + allottedTime
-//   - Time-out: current time > timeout + 60 min
-// Returns true if every single window has closed.
+// ✅ Check if all attendance windows for an event have fully ended.
 // ============================== 
 const areAllWindowsClosed = (event) => {
   const currentMinutes = getPHTMinutes();
@@ -291,13 +287,40 @@ const getSessionInfo = (event) => {
 };
 
 // ============================== 
+// ✅ BUILD DISMISSAL NOTE
+// Priority: dismissalNote from frontend > withParents fallback > isEarlyOut tag
+// ============================== 
+const buildDismissalNote = (existingNote, dismissalNote, withParents, isEarlyOut) => {
+  const parts = [];
+
+  // Preserve existing note (e.g. "Early arrival" set during time-in)
+  if (existingNote) parts.push(existingNote);
+
+  if (dismissalNote && dismissalNote.trim()) {
+    // Frontend sent explicit reason from the WithParentsModal
+    // e.g. "Left with parents", "Left with guardian", or custom text
+    parts.push(dismissalNote.trim());
+  } else if (withParents) {
+    // Fallback: old boolean-style for backward compat
+    parts.push("Left with parents");
+  }
+
+  // Tag early dismissal if applicable and not already described
+  if (isEarlyOut && !dismissalNote && !withParents) {
+    parts.push("Early dismissal");
+  }
+
+  return parts.length > 0 ? parts.join(" | ") : null;
+};
+
+// ============================== 
 // ✅ CREATE ATTENDANCE
 // ============================== 
 const createAttendance = async (req, res) => {
   try {
-    const { studentId, sscId, eventId, role, actionType, withParents } = req.body;
+    const { studentId, sscId, eventId, role, actionType, withParents, dismissalNote } = req.body;
 
-    console.log("📝 Attendance request:", { studentId, sscId, eventId, role, actionType, withParents });
+    console.log("📝 Attendance request:", { studentId, sscId, eventId, role, actionType, withParents, dismissalNote });
 
     if (role !== "ssc") {
       return res.status(403).json({ error: "Access denied. SSC only." });
@@ -322,16 +345,13 @@ const createAttendance = async (req, res) => {
 
     console.log(`⏰ PHT time: ${currentTime}, date: ${today}`);
 
-    // ── ✅ NEW: Check if ALL attendance windows for today have already closed ──
-    // This fires before getSessionInfo so we can return a dedicated error code
-    // that the frontend can display a specific "attendance closed" alert for.
+    // Check if ALL attendance windows for today have already closed
     if (areAllWindowsClosed(event)) {
       return res.status(410).json({
         error: "ATTENDANCE_CLOSED",
         message: "All attendance windows for today have ended. The time-in and time-out periods, including the allotted grace time, have already passed. No further attendance can be recorded for this event.",
       });
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     const sessions = getSessionInfo(event);
 
@@ -424,9 +444,15 @@ const createAttendance = async (req, res) => {
             error: `Already timed out for morning session at ${record.morningOut}`
           });
         }
-        record.morningOut = currentTime;
-        if (withParents)  record.morningNote  = (record.morningNote  ? record.morningNote  + " | " : "") + "Left with parents";
-        if (isEarlyOut)   record.morningNote  = (record.morningNote  ? record.morningNote  + " | " : "") + "Early dismissal";
+
+        record.morningOut  = currentTime;
+        record.morningNote = buildDismissalNote(
+          record.morningNote,
+          dismissalNote,
+          withParents,
+          isEarlyOut,
+        );
+
       } else {
         if (!record.afternoonIn) {
           return res.status(400).json({
@@ -438,18 +464,27 @@ const createAttendance = async (req, res) => {
             error: `Already timed out for afternoon session at ${record.afternoonOut}`
           });
         }
-        record.afternoonOut = currentTime;
-        if (withParents)  record.afternoonNote = (record.afternoonNote ? record.afternoonNote + " | " : "") + "Left with parents";
-        if (isEarlyOut)   record.afternoonNote = (record.afternoonNote ? record.afternoonNote + " | " : "") + "Early dismissal";
+
+        record.afternoonOut  = currentTime;
+        record.afternoonNote = buildDismissalNote(
+          record.afternoonNote,
+          dismissalNote,
+          withParents,
+          isEarlyOut,
+        );
       }
 
       await record.save();
 
-      const noteMsg = withParents
-        ? " — left with parents"
-        : isEarlyOut
-          ? " (early dismissal)"
-          : "";
+      // Build a readable success message
+      let noteMsg = "";
+      if (dismissalNote && dismissalNote.trim()) {
+        noteMsg = ` — ${dismissalNote.trim()}`;
+      } else if (withParents) {
+        noteMsg = " — left with parents";
+      } else if (isEarlyOut) {
+        noteMsg = " (early dismissal)";
+      }
 
       return res.status(200).json({
         message: `Successfully timed out for ${session} session${noteMsg}`,
