@@ -297,15 +297,11 @@ const buildDismissalNote = (existingNote, dismissalNote, withParents, isEarlyOut
   if (existingNote) parts.push(existingNote);
 
   if (dismissalNote && dismissalNote.trim()) {
-    // Frontend sent explicit reason from the WithParentsModal
-    // e.g. "Left with parents", "Left with guardian", or custom text
     parts.push(dismissalNote.trim());
   } else if (withParents) {
-    // Fallback: old boolean-style for backward compat
     parts.push("Left with parents");
   }
 
-  // Tag early dismissal if applicable and not already described
   if (isEarlyOut && !dismissalNote && !withParents) {
     parts.push("Early dismissal");
   }
@@ -345,7 +341,6 @@ const createAttendance = async (req, res) => {
 
     console.log(`⏰ PHT time: ${currentTime}, date: ${today}`);
 
-    // Check if ALL attendance windows for today have already closed
     if (areAllWindowsClosed(event)) {
       return res.status(410).json({
         error: "ATTENDANCE_CLOSED",
@@ -476,7 +471,6 @@ const createAttendance = async (req, res) => {
 
       await record.save();
 
-      // Build a readable success message
       let noteMsg = "";
       if (dismissalNote && dismissalNote.trim()) {
         noteMsg = ` — ${dismissalNote.trim()}`;
@@ -661,7 +655,7 @@ const updateAttendance = async (req, res) => {
 };
 
 // ============================== 
-// DELETE ATTENDANCE
+// DELETE ATTENDANCE (single record)
 // ============================== 
 const deleteAttendance = async (req, res) => {
   try {
@@ -672,6 +666,21 @@ const deleteAttendance = async (req, res) => {
   } catch (err) {
     console.error("❌ DELETE attendance error:", err);
     res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ==============================
+// ✅ DELETE ALL ATTENDANCE FOR AN EVENT (cascade — call this when deleting an event)
+// Usage: import and call deleteAttendanceByEvent(eventId) inside your event delete handler
+// ==============================
+const deleteAttendanceByEvent = async (eventId) => {
+  try {
+    const result = await Attendance.deleteMany({ eventId });
+    console.log(`🗑️ Cascade deleted ${result.deletedCount} attendance records for event ${eventId}`);
+    return result.deletedCount;
+  } catch (err) {
+    console.error("❌ Cascade delete attendance error:", err);
+    throw err;
   }
 };
 
@@ -777,7 +786,6 @@ const exportAttendance = async (req, res) => {
         const mStatus = (record?.morningStatus   || "absent").toUpperCase();
         const aStatus = (record?.afternoonStatus || "absent").toUpperCase();
 
-        // Morning row
         const mRow = sheet.addRow({
           no:       dateIdx === 0 ? rowNum : "",
           idNumber: dateIdx === 0 ? (student.idNumber || "") : "",
@@ -815,7 +823,6 @@ const exportAttendance = async (req, res) => {
           });
         }
 
-        // Afternoon row
         const aRow = sheet.addRow({
           no: "", idNumber: "", name: "", course: "", year: "", section: "",
           date:    formattedDate,
@@ -879,5 +886,6 @@ module.exports = {
   autoMarkAbsent,
   updateAttendance,
   deleteAttendance,
+  deleteAttendanceByEvent, // ✅ Export for use in event delete handler
   exportAttendance,
 };

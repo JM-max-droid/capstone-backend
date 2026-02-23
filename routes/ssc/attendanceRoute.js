@@ -1,12 +1,12 @@
-// ==========================================
 // routes/ssc/attendanceRoute.js
-// SSC can only VIEW attendance — no CRUD, no mark absent, no export
-// ==========================================
 const express = require("express");
 const router = express.Router();
-const { getAttendance } = require("../../controllers/attendanceControllers");
+const { getAttendance, createAttendance } = require("../../controllers/attendanceControllers");
 
-// ✅ SSC: View attendance records only
+// ✅ SSC: View attendance records
 router.get("/", getAttendance);
+
+// ✅ SSC: Mark attendance (time in / time out)
+router.post("/", createAttendance);
 
 module.exports = router;

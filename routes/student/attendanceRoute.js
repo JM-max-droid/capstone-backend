@@ -22,14 +22,19 @@ router.get("/", async (req, res) => {
       .sort({ date: -1, createdAt: -1 }) // Most recent first
       .lean();
 
-    console.log(`✅ Found ${records.length} attendance records for student ${userId}`);
+    // ✅ Filter out records whose event has been deleted (eventId populated as null)
+    const validRecords = records.filter((r) => r.eventId !== null && r.eventId !== undefined);
 
-    res.status(200).json(records);
+    console.log(
+      `✅ Found ${records.length} total records, ${validRecords.length} with active events for student ${userId}`
+    );
+
+    res.status(200).json(validRecords);
   } catch (err) {
     console.error("❌ Error fetching student attendance:", err);
-    res.status(500).json({ 
-      error: "Server error", 
-      details: err.message 
+    res.status(500).json({
+      error: "Server error",
+      details: err.message,
     });
   }
 });
