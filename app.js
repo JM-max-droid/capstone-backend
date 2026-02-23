@@ -19,6 +19,7 @@ const userRoute = require("./routes/student/userRoute");
 const studentRoute = require("./routes/oss/studentRoute");
 const studentAttendanceRoute = require("./routes/student/attendanceRoute");
 const studentEventRoute = require("./routes/student/eventRoute"); // ✅ NEW
+const sscEventRoute     = require("./routes/ssc/eventRoute");     // ✅ NEW
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute");
@@ -35,6 +36,7 @@ const yearEndRoute = require("./routes/oss/yearEndRoute");
 
 const superadminUserRoute        = require("./routes/superadmin/userRoute");
 const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute");
+const superadminEventRoute       = require("./routes/superadmin/eventRoute"); // ✅ NEW
 
 // ===============================
 // ✅ App Setup
@@ -71,6 +73,7 @@ app.use("/api/oss/notifications", notificationRoute);
 
 app.use("/api/student/attendance", studentAttendanceRoute);
 app.use("/api/student/events", studentEventRoute); // ✅ NEW — must be before /api/student
+app.use("/api/ssc/events", sscEventRoute);         // ✅ NEW — must be before /api/ssc
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
@@ -84,6 +87,7 @@ app.use("/api/users", ossUserRoute);
 app.use("/api/year-end", yearEndRoute);
 
 app.use("/api/superadmin/users", superadminUserProfileRoute);
+app.use("/api/superadmin/events", superadminEventRoute); // ✅ NEW — must be before /api/superadmin
 app.use("/api/superadmin", superadminUserRoute);
 
 app.use("/api/lookup", lookupRoute);
@@ -107,6 +111,8 @@ app.get("/", (req, res) => {
       scanner: "GET /api/scanner/:idNumber",
       studentAttendance: "GET /api/student/attendance?userId=xxx",
       studentEvents: "GET /api/student/events", // ✅ NEW
+      sscEvents: "GET /api/ssc/events",          // ✅ NEW
+      superadminEvents: "GET /api/superadmin/events", // ✅ NEW
       sscAttendance: "POST /api/ssc/attendance",
       sscUser: "GET /api/ssc/user?idNumber=xxx",
       sscStudents: "GET /api/ssc/students",
