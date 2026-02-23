@@ -34,9 +34,10 @@ const ossUserRoute = require("./routes/oss/userRoute");
 
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
-const superadminUserRoute        = require("./routes/superadmin/userRoute");
-const superadminUserProfileRoute = require("./routes/superadmin/userProfileRoute");
-const superadminEventRoute       = require("./routes/superadmin/eventRoute"); // ✅ NEW
+const superadminUserRoute         = require("./routes/superadmin/userRoute");
+const superadminUserProfileRoute  = require("./routes/superadmin/userProfileRoute");
+const superadminEventRoute        = require("./routes/superadmin/eventRoute"); // ✅ NEW
+const superadminStudentRoute      = require("./routes/superadmin/studentRoute"); // ✅ NEW
 
 // ===============================
 // ✅ App Setup
@@ -88,6 +89,7 @@ app.use("/api/year-end", yearEndRoute);
 
 app.use("/api/superadmin/users", superadminUserProfileRoute);
 app.use("/api/superadmin/events", superadminEventRoute); // ✅ NEW — must be before /api/superadmin
+app.use("/api/superadmin/students", superadminStudentRoute); // ✅ NEW — must be before /api/superadmin
 app.use("/api/superadmin", superadminUserRoute);
 
 app.use("/api/lookup", lookupRoute);
@@ -120,6 +122,7 @@ app.get("/", (req, res) => {
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
+      superadminStudents: "GET /api/superadmin/students", // ✅ NEW
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
     },
