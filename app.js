@@ -18,8 +18,8 @@ const qrcodeRoute = require("./routes/registration/qrcodeRoute");
 const userRoute = require("./routes/student/userRoute");
 const studentRoute = require("./routes/oss/studentRoute");
 const studentAttendanceRoute = require("./routes/student/attendanceRoute");
-const studentEventRoute = require("./routes/student/eventRoute"); // ✅ NEW
-const sscEventRoute     = require("./routes/ssc/eventRoute");     // ✅ NEW
+const studentEventRoute = require("./routes/student/eventRoute");
+const sscEventRoute     = require("./routes/ssc/eventRoute");
 const scannerLookupRoute = require("./routes/ssc/scannerLookupRoute");
 const sscAttendanceRoute = require("./routes/ssc/attendanceRoute");
 const sscUserRoute = require("./routes/ssc/userRoute");
@@ -31,13 +31,16 @@ const eventRoute = require("./routes/oss/eventRoute");
 const ossRoute = require("./routes/oss/ossRoute");
 const notificationRoute = require("./routes/oss/notificationRoutes");
 const ossUserRoute = require("./routes/oss/userRoute");
+const ossPendingRoute = require("./routes/oss/pendingStudentRoute");
 
 const yearEndRoute = require("./routes/oss/yearEndRoute");
 
 const superadminUserRoute         = require("./routes/superadmin/userRoute");
 const superadminUserProfileRoute  = require("./routes/superadmin/userProfileRoute");
-const superadminEventRoute        = require("./routes/superadmin/eventRoute"); // ✅ NEW
-const superadminStudentRoute      = require("./routes/superadmin/studentRoute"); // ✅ NEW
+const superadminEventRoute        = require("./routes/superadmin/eventRoute");
+const superadminStudentRoute      = require("./routes/superadmin/studentRoute");
+const superadminYearEndRoute      = require("./routes/superadmin/yearEndRoute");
+const superadminPendingRoute      = require("./routes/superadmin/pendingStudentRoute"); // ✅ NEW
 
 // ===============================
 // ✅ App Setup
@@ -71,10 +74,11 @@ app.use("/api/register/resend-verification", resendVerificationRoute);
 app.use("/api/register", registerRoute);
 
 app.use("/api/oss/notifications", notificationRoute);
+app.use("/api/oss/pending", ossPendingRoute);
 
 app.use("/api/student/attendance", studentAttendanceRoute);
-app.use("/api/student/events", studentEventRoute); // ✅ NEW — must be before /api/student
-app.use("/api/ssc/events", sscEventRoute);         // ✅ NEW — must be before /api/ssc
+app.use("/api/student/events", studentEventRoute);
+app.use("/api/ssc/events", sscEventRoute);
 app.use("/api/ssc/attendance", sscAttendanceRoute);
 app.use("/api/attendance", ossAttendanceRoute);
 
@@ -87,9 +91,11 @@ app.use("/api/users", ossUserRoute);
 
 app.use("/api/year-end", yearEndRoute);
 
+app.use("/api/superadmin/year-end", superadminYearEndRoute);
+app.use("/api/superadmin/pending", superadminPendingRoute);      // ✅ NEW
 app.use("/api/superadmin/users", superadminUserProfileRoute);
-app.use("/api/superadmin/events", superadminEventRoute); // ✅ NEW — must be before /api/superadmin
-app.use("/api/superadmin/students", superadminStudentRoute); // ✅ NEW — must be before /api/superadmin
+app.use("/api/superadmin/events", superadminEventRoute);
+app.use("/api/superadmin/students", superadminStudentRoute);
 app.use("/api/superadmin", superadminUserRoute);
 
 app.use("/api/lookup", lookupRoute);
@@ -112,9 +118,9 @@ app.get("/", (req, res) => {
       login: "POST /api/login",
       scanner: "GET /api/scanner/:idNumber",
       studentAttendance: "GET /api/student/attendance?userId=xxx",
-      studentEvents: "GET /api/student/events", // ✅ NEW
-      sscEvents: "GET /api/ssc/events",          // ✅ NEW
-      superadminEvents: "GET /api/superadmin/events", // ✅ NEW
+      studentEvents: "GET /api/student/events",
+      sscEvents: "GET /api/ssc/events",
+      superadminEvents: "GET /api/superadmin/events",
       sscAttendance: "POST /api/ssc/attendance",
       sscUser: "GET /api/ssc/user?idNumber=xxx",
       sscStudents: "GET /api/ssc/students",
@@ -122,9 +128,17 @@ app.get("/", (req, res) => {
       ossAttendance: "POST /api/attendance",
       events: "GET /api/events",
       superadminUsers: "GET /api/superadmin/users",
-      superadminStudents: "GET /api/superadmin/students", // ✅ NEW
+      superadminStudents: "GET /api/superadmin/students",
       yearEndReview: "GET /api/year-end/review",
       yearEndRun: "POST /api/year-end/run",
+      superadminYearEndReview: "GET /api/superadmin/year-end/review",
+      superadminYearEndRun: "POST /api/superadmin/year-end/run",
+      ossPending: "GET /api/oss/pending",
+      ossPendingApprove: "POST /api/oss/pending/:id/approve",
+      ossPendingReject: "POST /api/oss/pending/:id/reject",
+      superadminPending: "GET /api/superadmin/pending",                    // ✅ NEW
+      superadminPendingApprove: "POST /api/superadmin/pending/:id/approve", // ✅ NEW
+      superadminPendingReject: "POST /api/superadmin/pending/:id/reject",   // ✅ NEW
     },
   });
 });

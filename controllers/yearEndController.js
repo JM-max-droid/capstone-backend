@@ -1,6 +1,5 @@
-const yearEndService = require("../../services/yearEndService");
+const yearEndService = require("../services/yearEndService");
 
-// ─── RUN FULL YEAR-END PROCESS ───────────────────────────────────────────────
 exports.runYearEnd = async (req, res) => {
   try {
     const processedBy = req.user?.idNumber?.toString() || "system";
@@ -12,7 +11,6 @@ exports.runYearEnd = async (req, res) => {
   }
 };
 
-// ─── MANUAL ACTION ON SELECTED STUDENTS ─────────────────────────────────────
 exports.manualAction = async (req, res) => {
   try {
     const { studentIds, action, remarks } = req.body;
@@ -35,7 +33,26 @@ exports.manualAction = async (req, res) => {
   }
 };
 
-// ─── GET STUDENTS FOR REVIEW ─────────────────────────────────────────────────
+// ─── REVERT STUDENTS BACK TO ACTIVE ──────────────────────────────────────────
+exports.revertAction = async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0)
+      return res.status(400).json({ error: "No students selected" });
+
+    const processedBy = req.user?.idNumber?.toString() || "system";
+    const results     = await yearEndService.revertToActive(studentIds, processedBy);
+    const successful  = results.filter((r) => r.success).length;
+    const failed      = results.filter((r) => !r.success).length;
+
+    res.json({ message: `Reverted ${successful} student(s) to Active. ${failed} failed.`, results });
+  } catch (err) {
+    console.error("Revert Action Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── GET STUDENTS FOR REVIEW ──────────────────────────────────────────────────
 exports.getStudentsForReview = async (req, res) => {
   try {
     const data = await yearEndService.getStudentsForReview();
@@ -46,7 +63,21 @@ exports.getStudentsForReview = async (req, res) => {
   }
 };
 
-// ─── GET ALL ACADEMIC YEARS ───────────────────────────────────────────────────
+// ─── DELETE STUDENTS PERMANENTLY ─────────────────────────────────────────────
+exports.deleteStudents = async (req, res) => {
+  try {
+    const { studentIds } = req.body;
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0)
+      return res.status(400).json({ error: "No students selected" });
+
+    const result = await yearEndService.deleteStudents(studentIds);
+    res.json({ message: `${result.deletedCount} student record(s) permanently deleted.`, ...result });
+  } catch (err) {
+    console.error("Delete Students Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getAcademicYears = async (req, res) => {
   try {
     const years = await yearEndService.getAcademicYears();
@@ -56,7 +87,6 @@ exports.getAcademicYears = async (req, res) => {
   }
 };
 
-// ─── CREATE ACADEMIC YEAR ─────────────────────────────────────────────────────
 exports.createAcademicYear = async (req, res) => {
   try {
     const { year, setAsCurrent = false } = req.body;
@@ -68,16 +98,11 @@ exports.createAcademicYear = async (req, res) => {
   }
 };
 
-// ─── 🆕 UPDATE ACADEMIC YEAR ─────────────────────────────────────────────────
-// PATCH /api/year-end/academic-years/:id
-// Body: { year?: "2025-2026", isCurrent?: true, startDate?: "...", endDate?: "..." }
 exports.updateAcademicYear = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-
     if (!id) return res.status(400).json({ error: "Academic year ID is required" });
-
     const updated = await yearEndService.updateAcademicYear(id, updates);
     res.json({ message: "Academic year updated successfully", year: updated });
   } catch (err) {
@@ -86,13 +111,10 @@ exports.updateAcademicYear = async (req, res) => {
   }
 };
 
-// ─── 🆕 DELETE ACADEMIC YEAR ─────────────────────────────────────────────────
-// DELETE /api/year-end/academic-years/:id
 exports.deleteAcademicYear = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Academic year ID is required" });
-
     const result = await yearEndService.deleteAcademicYear(id);
     res.json({ message: `Academic year ${result.year} deleted successfully` });
   } catch (err) {
@@ -101,7 +123,6 @@ exports.deleteAcademicYear = async (req, res) => {
   }
 };
 
-// ─── MIGRATION ───────────────────────────────────────────────────────────────
 exports.migrateStudents = async (req, res) => {
   try {
     const { defaultAcademicYear } = req.body;

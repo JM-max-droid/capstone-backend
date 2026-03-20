@@ -1,7 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const User = require("../../models/User");
+const { sendVerificationEmail } = require("../../utils/emailService");
 
 router.post("/", async (req, res) => {
   console.log("\n🔵 ========== REGISTRATION REQUEST ==========");
@@ -39,29 +41,58 @@ router.post("/", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // ✅ Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpiry = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+    // ✅ Save to DB
     await User.updateOne(
       { _id: user._id },
       {
         $set: {
           email: email.trim().toLowerCase(),
           password: hashedPassword,
-          isEmailVerified: true,
+          isEmailVerified: false,
+          verificationToken,
+          verificationTokenExpiry,
           ...(photoURL && { photoURL }),
           ...(qrCode && { qrCode }),
         },
       }
     );
 
-    console.log("✅ User registered successfully");
+    console.log("✅ User saved to DB successfully");
+
+    // ✅ Build updated user object — HINDI na yung lumang 'user' variable
+    // Kaya nagfa-fail dati: user.email ay undefined pa noon bago ang updateOne()
+    const updatedUser = {
+      ...user.toObject(),
+      email: email.trim().toLowerCase(),
+      firstName: user.firstName,
+    };
+
+    // ✅ Send verification email gamit ang UPDATED user
+    console.log("📧 Sending verification email to:", updatedUser.email);
+    await sendVerificationEmail(updatedUser, verificationToken);
+    console.log("✅ Verification email sent successfully!");
 
     res.status(200).json({
       success: true,
-      message: "Registration successful! You can now login.",
+      message: "Registration successful! Please check your email to verify your account.",
       email: email.trim().toLowerCase(),
     });
 
   } catch (err) {
-    console.error("🔥 Registration error:", err);
+    console.error("🔥 Registration error:", err.message);
+
+    // ✅ Mas specific na error messages
+    if (err.message.includes("EAUTH") || err.message.includes("535")) {
+      return res.status(500).json({ error: "Email authentication failed. Please contact support." });
+    }
+    if (err.message.includes("ECONNECTION") || err.message.includes("ETIMEDOUT")) {
+      return res.status(500).json({ error: "Cannot connect to email server. Please try again." });
+    }
+
     res.status(500).json({ error: "Server error during registration" });
   }
 });

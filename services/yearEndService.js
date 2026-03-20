@@ -31,11 +31,14 @@ function isFinalYear(yearLevel, course, strand) {
 }
 
 // ─── GET STUDENTS FOR REVIEW ─────────────────────────────────────────────────
+// FIX: Also fetch graduated students (role: "graduate") so the
+//      frontend Graduated tab can display them.
 
 exports.getStudentsForReview = async () => {
   const currentYearDoc = await AcademicYear.findOne({ isCurrent: true });
   const currentYear = currentYearDoc?.year || "";
 
+  // Active students (student + ssc roles)
   const allActive = await User.find({
     role: { $in: ["student", "ssc"] },
     $or: [
@@ -47,10 +50,28 @@ exports.getStudentsForReview = async () => {
     .select("-password -verificationToken -verificationTokenExpiry -__v")
     .lean();
 
+  // Graduated students — role changes to "graduate" after graduation
+  const graduated = await User.find({
+    $or: [
+      { role: "graduate" },
+      { status: "graduated" },
+    ],
+  })
+    .select("-password -verificationToken -verificationTokenExpiry -__v")
+    .lean();
+
+  // Deduplicate in case a user matches both queries
+  const seen = new Set();
+  const uniqueGraduated = graduated.filter(s => {
+    if (seen.has(s._id.toString())) return false;
+    seen.add(s._id.toString());
+    return true;
+  });
+
   const finalYear = allActive.filter((s) => isFinalYear(s.yearLevel, s.course, s.strand));
   const nonFinal  = allActive.filter((s) => !isFinalYear(s.yearLevel, s.course, s.strand));
 
-  return { finalYear, nonFinal, currentYear };
+  return { finalYear, nonFinal, graduated: uniqueGraduated, currentYear };
 };
 
 // ─── MAIN YEAR-END PROCESS ───────────────────────────────────────────────────
@@ -175,6 +196,32 @@ exports.applyManualAction = async (studentIds, action, remarks = "", processedBy
   return results;
 };
 
+// ─── REVERT STUDENT BACK TO ACTIVE ───────────────────────────────────────────
+// Resets status to "active" and role back to "student", clears remarks.
+
+exports.revertToActive = async (studentIds, processedBy = "system") => {
+  const results = [];
+  for (const id of studentIds) {
+    const student = await User.findById(id);
+    if (!student) { results.push({ id, success: false, reason: "Student not found" }); continue; }
+    const previousStatus = student.status;
+    student.status         = "active";
+    student.role           = student.sscPosition ? "ssc" : "student"; // restore original role
+    student.yearEndRemarks = "";
+    await student.save();
+    results.push({ id, success: true, previousStatus, name: `${student.firstName} ${student.lastName}` });
+  }
+  return results;
+};
+
+// ─── DELETE STUDENTS PERMANENTLY ─────────────────────────────────────────────
+
+exports.deleteStudents = async (studentIds) => {
+  if (!studentIds || studentIds.length === 0) throw new Error("No student IDs provided");
+  const result = await User.deleteMany({ _id: { $in: studentIds } });
+  return { deletedCount: result.deletedCount };
+};
+
 // ─── GET ALL ACADEMIC YEARS ───────────────────────────────────────────────────
 
 exports.getAcademicYears = async () => {
@@ -190,25 +237,22 @@ exports.createAcademicYear = async (year, setAsCurrent = false) => {
   return AcademicYear.create({ year, isCurrent: setAsCurrent });
 };
 
-// ─── 🆕 UPDATE ACADEMIC YEAR ─────────────────────────────────────────────────
-// Can update: year string, isCurrent, startDate, endDate
+// ─── UPDATE ACADEMIC YEAR ─────────────────────────────────────────────────────
 
 exports.updateAcademicYear = async (id, updates) => {
   const yearDoc = await AcademicYear.findById(id);
   if (!yearDoc) throw new Error("Academic year not found");
 
-  // If renaming the year string, check no duplicate
   if (updates.year && updates.year !== yearDoc.year) {
     const duplicate = await AcademicYear.findOne({ year: updates.year });
     if (duplicate) throw new Error(`Academic year ${updates.year} already exists`);
     yearDoc.year = updates.year;
   }
 
-  // If setting as current, unset all others first
   if (updates.isCurrent === true) {
     await AcademicYear.updateMany({ _id: { $ne: id } }, { $set: { isCurrent: false } });
     yearDoc.isCurrent = true;
-    yearDoc.isClosed  = false; // re-open if was closed
+    yearDoc.isClosed  = false;
   }
 
   if (updates.isCurrent === false) yearDoc.isCurrent = false;
@@ -219,15 +263,12 @@ exports.updateAcademicYear = async (id, updates) => {
   return yearDoc;
 };
 
-// ─── 🆕 DELETE ACADEMIC YEAR ─────────────────────────────────────────────────
+// ─── DELETE ACADEMIC YEAR ─────────────────────────────────────────────────────
 
 exports.deleteAcademicYear = async (id) => {
   const yearDoc = await AcademicYear.findById(id);
   if (!yearDoc) throw new Error("Academic year not found");
-
-  // Safety: cannot delete the currently active year
   if (yearDoc.isCurrent) throw new Error("Cannot delete the current active academic year. Set another year as current first.");
-
   await AcademicYear.findByIdAndDelete(id);
   return { deleted: true, year: yearDoc.year };
 };
@@ -236,7 +277,6 @@ exports.deleteAcademicYear = async (id) => {
 
 exports.migrateExistingStudents = async (defaultAcademicYear) => {
   if (!defaultAcademicYear) throw new Error("Provide a defaultAcademicYear (e.g. '2024-2025')");
-
   const result = await User.updateMany(
     {
       role: { $in: ["student", "ssc"] },
@@ -249,6 +289,5 @@ exports.migrateExistingStudents = async (defaultAcademicYear) => {
     },
     { $set: { academicYear: defaultAcademicYear, status: "active" } }
   );
-
   return { migratedCount: result.modifiedCount };
 };

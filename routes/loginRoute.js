@@ -37,6 +37,15 @@ router.post("/", async (req, res) => {
 
     console.log("✅ Password matched!");
 
+    // ✅ BLOCK LOGIN IF EMAIL NOT VERIFIED
+    if (!user.isEmailVerified) {
+      console.log("⛔ Email not verified:", user.email);
+      return res.status(403).json({
+        error: "Please verify your email before logging in.",
+        requiresVerification: true, // ← this is what the frontend checks
+      });
+    }
+
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
       process.env.JWT_SECRET || "your_super_secret_key_here",

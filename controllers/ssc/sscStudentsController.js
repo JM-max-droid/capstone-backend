@@ -1,5 +1,6 @@
 // controllers/ssc/sscStudentController.js
 const User = require("../../models/User");
+const PendingStudent = require("../../models/PendingStudent");
 const bcrypt = require("bcryptjs");
 
 /**
@@ -7,36 +8,20 @@ const bcrypt = require("bcryptjs");
  */
 exports.getStudents = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 50,
-      search = "",
-      regType,
-      yearLevel,
-    } = req.query;
-
-    const skip = (page - 1) * limit;
+    const { page = 1, limit = 500, search = "", regType, yearLevel } = req.query;
+    const skip  = (page - 1) * limit;
     const query = { role: { $in: ["student", "ssc"] } };
 
-    // Search filter
     if (search) {
       query.$or = [
         { firstName: new RegExp(search, "i") },
-        { lastName: new RegExp(search, "i") },
-        { course: new RegExp(search, "i") },
-        { strand: new RegExp(search, "i") },
+        { lastName:  new RegExp(search, "i") },
+        { course:    new RegExp(search, "i") },
+        { strand:    new RegExp(search, "i") },
       ];
     }
-
-    // Registration type filter
-    if (regType === "college") {
-      query.course = { $exists: true, $ne: "", $ne: null };
-    }
-    if (regType === "senior") {
-      query.strand = { $exists: true, $ne: "", $ne: null };
-    }
-
-    // Year level filter
+    if (regType === "college") query.course = { $exists: true, $nin: ["", null] };
+    if (regType === "senior")  query.strand = { $exists: true, $nin: ["", null] };
     if (yearLevel) query.yearLevel = yearLevel;
 
     const students = await User.find(query)
@@ -47,14 +32,7 @@ exports.getStudents = async (req, res) => {
       .lean();
 
     const total = await User.countDocuments(query);
-
-    res.json({
-      students,
-      page: Number(page),
-      limit: Number(limit),
-      total,
-      totalPages: Math.ceil(total / limit),
-    });
+    res.json({ students, page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / limit) });
   } catch (err) {
     console.error("🔥 SSC fetch students error:", err);
     res.status(500).json({ error: "Server error fetching students" });
@@ -62,100 +40,89 @@ exports.getStudents = async (req, res) => {
 };
 
 /**
- * POST - Add Student (SSC can add students only)
+ * POST /ssc/students/submit-for-approval
+ * SSC submits a new student — goes to PendingStudent, NOT directly to User
  */
-exports.addStudent = async (req, res) => {
+exports.submitStudentForApproval = async (req, res) => {
   try {
     const {
-      idNumber,
-      firstName,
-      middleName = "",
-      lastName,
-      age,
-      course = "",
-      strand = "",
-      yearLevel,
-      section,
-      email = "",
-      password = "",
+      idNumber, firstName, middleName = "", lastName, age,
+      course = "", strand = "", yearLevel, section,
+      email = "", password = "", submittedBy = "SSC Officer",
     } = req.body;
 
-    console.log("📝 [SSC] Adding student:", { idNumber, firstName, lastName });
-
-    // Required fields validation
+    // ── Required field check ─────────────────────────────────
     if (!idNumber || !firstName || !lastName || !age || !yearLevel || !section) {
       return res.status(400).json({ error: "Incomplete data. Please fill all required fields." });
     }
-
-    // Course or strand must exist
     if (!course.trim() && !strand.trim()) {
-      return res.status(400).json({ error: "Course or Strand is required" });
+      return res.status(400).json({ error: "Course or Strand is required." });
     }
 
-    // Check if ID number already exists
-    const exists = await User.findOne({ idNumber: Number(idNumber) });
-    if (exists) {
-      return res.status(400).json({ error: "Student with this ID number already exists" });
+    // ── Duplicate checks in User (already registered) ────────
+    const existsInUser = await User.findOne({ idNumber: Number(idNumber) });
+    if (existsInUser) {
+      return res.status(400).json({ error: "A student with this ID number already exists." });
     }
 
-    // Check if email already exists (if provided)
-    if (email && email.trim()) {
+    if (email.trim()) {
       const emailExists = await User.findOne({ email: email.trim().toLowerCase() });
       if (emailExists) {
-        return res.status(400).json({ error: "Email already registered" });
+        return res.status(400).json({ error: "This email is already registered." });
       }
     }
 
-    const studentData = {
+    // ── Check if already in pending ──────────────────────────
+    const existsPending = await PendingStudent.findOne({
       idNumber: Number(idNumber),
-      firstName: firstName.trim(),
-      middleName: middleName.trim() || "",
-      lastName: lastName.trim(),
-      age: Number(age),
-      yearLevel: yearLevel.trim(),
-      section: section.trim(),
-      role: "student",
-      photoURL: "",
-      qrCode: "",
-      course: course.trim() ? course.trim() : "",
-      strand: strand.trim() ? strand.trim() : "",
-    };
-
-    if (email && email.trim()) {
-      studentData.email = email.trim().toLowerCase();
+      status: "pending",
+    });
+    if (existsPending) {
+      return res.status(400).json({ error: "A pending approval for this ID number already exists." });
     }
 
-    if (password && password.trim()) {
-      studentData.password = await bcrypt.hash(password.trim(), 10);
-      console.log("🔐 [SSC] Password hashed");
-    }
+    // ── Create pending record ────────────────────────────────
+    const pending = await PendingStudent.create({
+      idNumber:   Number(idNumber),
+      firstName:  firstName.trim(),
+      middleName: middleName.trim(),
+      lastName:   lastName.trim(),
+      age:        Number(age),
+      course:     course.trim(),
+      strand:     strand.trim(),
+      yearLevel:  yearLevel.trim(),
+      section:    section.trim(),
+      email:      email.trim().toLowerCase(),
+      password:   password.trim(), // store plain-text temporarily; hashed on approval
+      submittedBy,
+      status:     "pending",
+    });
 
-    const student = await User.create(studentData);
-
-    const createdStudent = await User.findById(student._id)
-      .select("-password -verificationToken -verificationTokenExpiry -__v")
-      .lean();
-
-    console.log("✅ [SSC] Student added:", createdStudent.idNumber);
-
+    console.log("📋 [SSC] Student submitted for approval:", pending.idNumber);
     res.status(201).json({
-      message: "Student added successfully",
-      student: createdStudent,
+      message: "Student submitted for approval. Waiting for OSS confirmation.",
+      pendingId: pending._id,
     });
   } catch (err) {
-    console.error("🔥 SSC add student error:", err);
+    console.error("🔥 SSC submit student error:", err);
+    res.status(500).json({ error: "Server error submitting student", details: err.message });
+  }
+};
 
-    if (err.name === "ValidationError") {
-      const errors = Object.keys(err.errors).map((key) => ({
-        field: key,
-        message: err.errors[key].message,
-      }));
-      return res.status(400).json({ error: "Validation error", details: errors });
-    }
+/**
+ * GET /ssc/students/pending
+ * SSC can view their own submitted pending requests
+ */
+exports.getPendingSubmissions = async (req, res) => {
+  try {
+    const { status } = req.query; // optional filter: pending | approved | rejected
+    const query = {};
+    if (status) query.status = status;
 
-    res.status(500).json({
-      error: "Server error adding student",
-      details: err.message,
-    });
+    const pending = await PendingStudent.find(query).sort({ createdAt: -1 }).lean();
+    res.json({ pending, total: pending.length });
+  } catch (err) {
+    console.error("🔥 SSC get pending error:", err);
+    res.status(500).json({ error: "Server error fetching pending submissions" });
   }
 };
