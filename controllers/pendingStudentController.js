@@ -1,6 +1,6 @@
 // controllers/oss/pendingStudentController.js
 const User           = require("../models/User");
-const PendingStudent = require("../models/PendingStudent");
+const PendingStudent = require("../models/pendingStudent");
 const bcrypt         = require("bcryptjs");
 
 /**
