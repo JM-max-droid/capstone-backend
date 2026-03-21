@@ -4,7 +4,7 @@ const router = express.Router();
 
 // FIX: correct path — controller lives in controllers/oss/
 const controller        = require("../../controllers/oss/studentController");
-const pendingController = require("../../controllers/oss/pendingStudentController");
+const pendingController = require("../../controllers/pendingStudentController");
 
 // ── Pending approval routes (MUST be before /:idNumber) ──────────────────────
 // NOTE: If these are declared after /:idNumber, Express will match "/pending"
