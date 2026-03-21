@@ -20,17 +20,19 @@ const isAM = (t) => /AM/i.test(t || "");
 const isPM = (t) => /PM/i.test(t || "");
 
 // ─── Validate session times → returns error string or null ───────────────────
+// NOTE: timeout fields have NO AM/PM restriction — they only need to be AFTER
+// the session end time. This allows early time-out scenarios where the timeout
+// can cross AM/PM boundaries (e.g. morning session ends 11:30 AM, timeout 12:30 PM).
 const validateSessionTimes = ({
   morningStart, morningEnd, morningTimeout,
   afternoonStart, afternoonEnd, afternoonTimeout,
 }) => {
-  // ── MORNING: all must be AM ──────────────────────────────────────────────
+  // ── MORNING: start/end must be AM — timeout has NO period restriction ────
   if (morningStart && !isAM(morningStart))
     return "Morning start time must be AM (12:00 AM – 11:59 AM).";
   if (morningEnd && !isAM(morningEnd))
     return "Morning end time must be AM (12:00 AM – 11:59 AM).";
-  if (morningTimeout && !isAM(morningTimeout))
-    return "Morning timeout must be AM (12:00 AM – 11:59 AM).";
+  // morningTimeout — no AM/PM check
 
   // ── MORNING: start ≠ end, start < end ────────────────────────────────────
   if (morningStart && morningEnd) {
@@ -50,13 +52,12 @@ const validateSessionTimes = ({
       return "Morning timeout must be after the session end time.";
   }
 
-  // ── AFTERNOON: all must be PM ────────────────────────────────────────────
+  // ── AFTERNOON: start/end must be PM — timeout has NO period restriction ──
   if (afternoonStart && !isPM(afternoonStart))
     return "Afternoon start time must be PM (12:00 PM – 11:59 PM).";
   if (afternoonEnd && !isPM(afternoonEnd))
     return "Afternoon end time must be PM (12:00 PM – 11:59 PM).";
-  if (afternoonTimeout && !isPM(afternoonTimeout))
-    return "Afternoon timeout must be PM (12:00 PM – 11:59 PM).";
+  // afternoonTimeout — no AM/PM check
 
   // ── AFTERNOON: start ≠ end, start < end ──────────────────────────────────
   if (afternoonStart && afternoonEnd) {
